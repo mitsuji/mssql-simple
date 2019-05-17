@@ -1,5 +1,5 @@
 name:                mssql-simple
-version:             0.1.0.0
+version:             0.1.0.1
 github:              "mitsuji/mssql-simple"
 license:             BSD3
 author:              "Takamasa Mitsuji"
@@ -26,7 +26,8 @@ dependencies:
 - binary
 - text
 - time
-- network
+- network     >= 2.7 && < 3.1
+- network-bsd >= 2.7 && < 2.9
 - tls
 
 
