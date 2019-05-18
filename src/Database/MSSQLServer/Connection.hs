@@ -31,7 +31,7 @@ import Control.Monad (when)
 import Control.Exception (Exception(..),throwIO)
 
 import qualified Network.TLS as TLS
-import Network.BSD (getHostName)
+import Network.HostName (getHostName)
 
 import Database.Tds.Message
 import Database.Tds.Transport (contextNew)

@@ -43,11 +43,7 @@ packages:
 # Dependency packages to be pulled from upstream that are not in the resolver
 # (e.g., acme-missiles-0.3)
 extra-deps:
-- network-3.0.1.1@sha256:1a251b790ea98b6f7433f677958f921950780ba6f143d61ba8c0e3f7a9879097
-- network-bsd-2.8.1.0@sha256:47cb03786ff5371876582babc72cbd88efbcb96053f5bfbefbc024fa80380bb3
-- git: git@github.com:mitsuji/ms-tds.git
-  commit: 97a038dd5e30253f003a1aa988ab4f83b2cd9a4b
-#- ../ms-tds
+- ms-tds-0.1.0.0
 
 
 # Override default flag values for local packages and extra-deps
