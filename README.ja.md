@@ -34,7 +34,7 @@ https://github.com/mitsuji/mssql-simple-example/blob/master/app/Main.hs
 
 * 7.1 Revision 1 対応 (SQL Server 2000 SP1 以降)
 
-* SQL Server 2008 R2 でテスト
+* SQL Server 2008 R2, SQL Server 2014 でテスト
 
 
 

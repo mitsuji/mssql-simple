@@ -33,7 +33,7 @@ https://github.com/mitsuji/mssql-simple-example/blob/master/app/Main.hs
 
 * 7.1 Revision 1 (SQL Server 2000 SP1 and later)
 
-* Tested with SQL Server 2008 R2
+* Tested with SQL Server 2008 R2, SQL Server 2014
 
 
 
