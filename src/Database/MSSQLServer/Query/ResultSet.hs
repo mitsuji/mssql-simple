@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module Database.MSSQLServer.Query.ResultSet ( ResultSet (..)
+                                            , extractTableStreams
                                             , Row (..)
                                             ) where
 
@@ -18,89 +19,75 @@ class ResultSet a where
 
 
 instance ResultSet () where
-  fromTokenStreams = f . extractStreams
+  fromTokenStreams = f . extractTableStreams
     where
       f [] = ()
       f _ = error "fromTokenStreams: List length must be 0"
 
 instance (Row a) => ResultSet [a] where
-  fromTokenStreams = f . extractStreams
+  fromTokenStreams = f . extractTableStreams
     where
-      f [v1] = b1
+      f [(m1,r1)] = b1
         where
-          !b1 = rowList v1
+          !b1 = fromListOfRawBytes m1 <$> r1
       f _ = error "fromTokenStreams: List length must be 1"
 
 instance (Row a, Row b) => ResultSet ([a],[b]) where
-  fromTokenStreams = f . extractStreams
+  fromTokenStreams = f . extractTableStreams
     where
-      f [v1,v2] = (b1,b2)
+      f [(m1,r1),(m2,r2)] = (b1,b2)
         where
-          !b1 = rowList v1
-          !b2 = rowList v2
+          !b1 = fromListOfRawBytes m1 <$> r1
+          !b2 = fromListOfRawBytes m2 <$> r2
       f _ = error "fromTokenStreams: List length must be 2"
 
 instance (Row a, Row b, Row c) => ResultSet ([a],[b],[c]) where
-  fromTokenStreams = f . extractStreams
+  fromTokenStreams = f . extractTableStreams
     where
-      f [v1,v2,v3] = (b1,b2,b3)
+      f [(m1,r1),(m2,r2),(m3,r3)] = (b1,b2,b3)
         where
-          !b1 = rowList v1
-          !b2 = rowList v2
-          !b3 = rowList v3
+          !b1 = fromListOfRawBytes m1 <$> r1
+          !b2 = fromListOfRawBytes m2 <$> r2
+          !b3 = fromListOfRawBytes m3 <$> r3
       f _ = error "fromTokenStreams: List length must be 3"
 
 instance (Row a, Row b, Row c, Row d) => ResultSet ([a],[b],[c],[d]) where
-  fromTokenStreams = f . extractStreams
+  fromTokenStreams = f . extractTableStreams
     where
-      f [v1,v2,v3,v4] = (b1,b2,b3,b4)
+      f [(m1,r1),(m2,r2),(m3,r3),(m4,r4)] = (b1,b2,b3,b4)
         where
-          !b1 = rowList v1
-          !b2 = rowList v2
-          !b3 = rowList v3
-          !b4 = rowList v4
+          !b1 = fromListOfRawBytes m1 <$> r1
+          !b2 = fromListOfRawBytes m2 <$> r2
+          !b3 = fromListOfRawBytes m3 <$> r3
+          !b4 = fromListOfRawBytes m4 <$> r4
       f _ = error "fromTokenStreams: List length must be 4"
 
 instance (Row a, Row b, Row c, Row d, Row e) => ResultSet ([a],[b],[c],[d],[e]) where
-  fromTokenStreams = f . extractStreams
+  fromTokenStreams = f . extractTableStreams
     where
-      f [v1,v2,v3,v4,v5] = (b1,b2,b3,b4,b5)
+      f [(m1,r1),(m2,r2),(m3,r3),(m4,r4),(m5,r5)] = (b1,b2,b3,b4,b5)
         where
-          !b1 = rowList v1
-          !b2 = rowList v2
-          !b3 = rowList v3
-          !b4 = rowList v4
-          !b5 = rowList v5
+          !b1 = fromListOfRawBytes m1 <$> r1
+          !b2 = fromListOfRawBytes m2 <$> r2
+          !b3 = fromListOfRawBytes m3 <$> r3
+          !b4 = fromListOfRawBytes m4 <$> r4
+          !b5 = fromListOfRawBytes m5 <$> r5
       f _ = error "fromTokenStreams: List length must be 5"
 
-      
 
--- (TSColMetaData,[TSRow])
-rowList :: (Row a) => (TokenStream,[TokenStream]) -> [a]
-rowList = \(tsCmd,tsRss) ->
-  let (TSColMetaData (maybeCmd)) = tsCmd
-      cds = case (\(ColMetaData x) -> x) <$> maybeCmd of
-        Nothing -> error "rowList: ColMetaData is necessary"
-        Just cds' -> cds'
-      datas = (\(TSRow row) -> rawBytes <$> row) <$> tsRss
-  in map (fromListOfRawBytes cds) datas
+
+
+extractTableStreams :: [TokenStream] -> [([MetaColumnData],[[RawBytes]])]
+extractTableStreams = map extract . span' . ( filter $ \x -> isTSColMetaData x || isTSRow x )
   where
-    rawBytes :: RowColumnData -> RawBytes
-    rawBytes (RCDOrdinal dt) = dt
-    rawBytes (RCDLarge _ _ dt) = dt
-
-
-
--- [(TSColMetaData,[TSRow])]
-extractStreams :: [TokenStream] -> [(TokenStream,[TokenStream])]
-extractStreams = f . ( filter $ \x -> isTSColMetaData x || isTSRow x )
-  where
-    f :: [TokenStream] -> [(TokenStream,[TokenStream])]
-    f [] = []
-    f (cmd:xs) =
+    -- [(TSColMetaData,[TSRow])]
+    span' :: [TokenStream] -> [(TokenStream,[TokenStream])]
+    span' [] = []
+    span' (cmd@TSColMetaData{}:xs) =
       let
         (rs,xs') = span isTSRow xs
-      in (cmd,rs):f xs'
+      in (cmd,rs):span' xs'
+    span' _ = error "extractTableStrams: TSColMetaData is necesarry"
 
     isTSColMetaData :: TokenStream -> Bool
     isTSColMetaData (TSColMetaData{}) = True
@@ -110,7 +97,18 @@ extractStreams = f . ( filter $ \x -> isTSColMetaData x || isTSRow x )
     isTSRow (TSRow{}) = True
     isTSRow _ = False
 
-
+    extract :: (TokenStream,[TokenStream]) -> ([MetaColumnData],[[RawBytes]])
+    extract = \(tsCmd,tsRss) ->
+      let (TSColMetaData (maybeCmd)) = tsCmd
+          cds = case (\(ColMetaData x) -> x) <$> maybeCmd of
+            Nothing -> error "extractTableStrams: ColMetaData is necessary"
+            Just cds' -> cds'
+          datas = (\(TSRow row) -> rawBytes <$> row) <$> tsRss
+      in (cds, datas)
+      where
+        rawBytes :: RowColumnData -> RawBytes
+        rawBytes (RCDOrdinal dt) = dt
+        rawBytes (RCDLarge _ _ dt) = dt
 
 
 mcdTypeInfo :: MetaColumnData -> TypeInfo
