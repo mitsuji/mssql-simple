@@ -11,6 +11,7 @@ module Database.MSSQLServer.Query.RpcQuerySet ( RpcQuerySet (..)
                                               , RpcParamSet (..)
                                               , RpcParam (..)
                                               , RpcParamName
+                                              , rpcReqBatchParam
                                               ) where
 
 
