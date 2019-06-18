@@ -7,6 +7,7 @@ module Database.MSSQLServer.Query.RpcResultSet ( RpcResultSet (..)
                                                , RpcOutputSet (..)
                                                ) where
 
+import Control.Applicative((<$>),(<*>))
 import Database.Tds.Message
 import Database.MSSQLServer.Query.ResultSet (ResultSet(..))
 import Database.MSSQLServer.Query.Only

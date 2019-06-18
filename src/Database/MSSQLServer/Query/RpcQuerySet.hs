@@ -1,7 +1,6 @@
 {-# OPTIONS_HADDOCK hide #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE BinaryLiterals #-}
 
 
 module Database.MSSQLServer.Query.RpcQuerySet ( RpcQuerySet (..)
@@ -15,6 +14,7 @@ module Database.MSSQLServer.Query.RpcQuerySet ( RpcQuerySet (..)
                                               ) where
 
 
+import Control.Applicative((<$>),(<*>))
 import qualified Data.Text as T
 import Data.Word (Word16(..))
 
@@ -214,9 +214,9 @@ data RpcParam a = RpcParamVal RpcParamName TypeInfo a
 rpcReqBatchParam :: (Data a) => RpcParam a -> RpcReqBatchParam
 rpcReqBatchParam = f
   where
-    f (RpcParamVal name ti dt) = RpcReqBatchParam name 0b00 ti (toRawBytes ti dt)
-    f (RpcParamRef name ti dt) = RpcReqBatchParam name 0b01 ti (toRawBytes ti dt)
-    f (RpcParamDefVal name ti dt) = RpcReqBatchParam name 0b10 ti (toRawBytes ti dt)
-    f (RpcParamDefRef name ti dt) = RpcReqBatchParam name 0b11 ti (toRawBytes ti dt)
+    f (RpcParamVal name ti dt) = RpcReqBatchParam name 0 ti (toRawBytes ti dt)
+    f (RpcParamRef name ti dt) = RpcReqBatchParam name 1 ti (toRawBytes ti dt)
+    f (RpcParamDefVal name ti dt) = RpcReqBatchParam name 2 ti (toRawBytes ti dt)
+    f (RpcParamDefRef name ti dt) = RpcReqBatchParam name 3 ti (toRawBytes ti dt)
 
 

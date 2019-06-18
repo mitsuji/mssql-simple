@@ -8,6 +8,7 @@ module Database.MSSQLServer.Query.ResultSet ( ResultSet (..)
                                             ) where
 
 
+import Control.Applicative((<$>),(<*>))
 import Database.Tds.Message
 import Database.MSSQLServer.Query.Only
 

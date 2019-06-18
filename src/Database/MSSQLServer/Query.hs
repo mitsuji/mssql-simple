@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Database.MSSQLServer.Query ( -- * SQL Text Query
                                     sql
@@ -29,6 +30,7 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                   ) where
 
 import Data.Monoid ((<>))
+import Data.Typeable(Typeable)
 
 import Network.Socket (Socket)
 import Network.Socket.ByteString (recv)
@@ -55,7 +57,7 @@ import Database.MSSQLServer.Query.RpcQuerySet
 
 
 data QueryError = QueryError !Info
-                deriving (Show)
+                deriving (Show,Typeable)
 
 instance Exception QueryError
 
