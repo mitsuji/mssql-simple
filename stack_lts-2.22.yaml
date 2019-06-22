@@ -4,8 +4,8 @@ packages:
 - .
 
 extra-deps:
-#- ms-tds-0.1.0.2
-- ../ms-tds
+- ms-tds-0.1.0.3
+#- ../ms-tds
 - uuid-types-1.0.3
 - binary-0.8.7.0
 
