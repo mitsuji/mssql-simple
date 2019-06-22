@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 module Database.MSSQLServer.Connection ( ConnectInfo(..)
                                        , Connection(..)
@@ -14,7 +15,7 @@ import Network.Socket (AddrInfo(..),SocketType(..),Socket(..))
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
 
-import Data.Monoid ((<>))
+import Data.Monoid ((<>),mempty)
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB
@@ -37,14 +38,14 @@ import Database.Tds.Message
 import Database.Tds.Transport (contextNew)
 
 import Data.Word (Word8)
-
+import Data.Typeable(Typeable)
 
 data ProtocolError = ProtocolError String
-                   deriving (Show)
+                   deriving (Show,Typeable)
 instance Exception ProtocolError
 
 data AuthError = AuthError !Info
-               deriving (Show)
+               deriving (Show,Typeable)
 instance Exception AuthError
 
 
