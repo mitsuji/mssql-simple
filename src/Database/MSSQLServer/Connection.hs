@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Database.MSSQLServer.Connection ( ConnectInfo(..)
+                                       , defaultConnectInfo
                                        , Connection(..)
                                        , connect
                                        , connectWithoutEncription
@@ -38,6 +39,7 @@ import Database.Tds.Message
 import Database.Tds.Transport (contextNew)
 
 import Data.Word (Word8)
+import Data.Int (Int32)
 import Data.Typeable(Typeable)
 
 data ProtocolError = ProtocolError String
@@ -56,13 +58,43 @@ data ConnectInfo = ConnectInfo { connectHost :: String
                                , connectDatabase :: String
                                , connectUser :: String
                                , connectPassword :: String
+                               , connectOptionFlags1 :: Word8
+                               , connectOptionFlags2 :: Word8
+                               , connectOptionFlags3 :: Word8
+                               , connectTypeFlags :: Word8
+                               , connectTimeZone :: Int32
+                               , connectCollation :: Collation32
+                               , connectLanguage :: String
+                               , connectAppName :: String
+                               , connectServerName :: String
                                }
+
+defaultConnectInfo :: ConnectInfo
+defaultConnectInfo =
+  let
+    l7 = defaultLogin7
+  in ConnectInfo { connectHost = mempty
+                 , connectPort = mempty
+                 , connectDatabase = T.unpack $ l7Database l7
+                 , connectUser = T.unpack $ l7UserName l7
+                 , connectPassword = T.unpack $ l7Password l7
+                 , connectOptionFlags1 = l7OptionFlags1 l7
+                 , connectOptionFlags2 = l7OptionFlags2 l7
+                 , connectOptionFlags3 = l7OptionFlags3 l7
+                 , connectTypeFlags = l7TypeFlags l7
+                 , connectTimeZone = l7TimeZone l7
+                 , connectCollation = l7Collation l7
+                 , connectLanguage = T.unpack $ l7Language l7
+                 , connectAppName = T.unpack $ l7AppName l7
+                 , connectServerName = T.unpack $ l7ServerName l7
+                 }
+
                    
 newtype Connection = Connection Socket
 
 
 connect :: ConnectInfo -> IO Connection
-connect ci@(ConnectInfo host port database user pass) = do
+connect ci@(ConnectInfo host port _ _ _ _ _ _ _ _ _ _ _ _) = do
   addr <- resolve host port
   sock <- connect' addr
   
@@ -101,7 +133,7 @@ connect ci@(ConnectInfo host port database user pass) = do
 
 
 connectWithoutEncription :: ConnectInfo -> IO Connection
-connectWithoutEncription ci@(ConnectInfo host port database user pass) = do
+connectWithoutEncription ci@(ConnectInfo host port _ _ _ _ _ _ _ _ _ _ _ _) = do
   addr <- resolve host port
   sock <- connect' addr
   
@@ -161,22 +193,28 @@ performPrelogin sock enc = do
 
   
 newLogin7 :: ConnectInfo -> IO Login7
-newLogin7 (ConnectInfo host port database user pass) = do
+newLogin7 (ConnectInfo host port database user pass optf1 optf2 optf3 typef tz coll lang app serv) = do
   ---
   --- Login7
   ---
-  -- [TODO] Improve default params
   -- [TODO] process ID support
   -- [TODO] MAC address support
   hostname <- getHostName
-  let login7 = defaultLogin7 { l7ClientPID = 1 -- [TODO]
+  let login7 = defaultLogin7 { l7OptionFlags1 = optf1
+                             , l7OptionFlags2 = optf2
+                             , l7OptionFlags3 = optf3
+                             , l7TypeFlags = typef
+                             , l7TimeZone = tz
+                             , l7Collation = coll
+                             , l7Language = T.pack lang
+                             , l7ClientPID = 1 -- [TODO]
                              , l7ClientMacAddr = B.pack [0x00,0x00,0x00,0x00,0x00,0x00] -- [TODO]
-                             , l7ClientHostName = (T.pack hostname)
-                             , l7AppName = "mssql-simple" -- [TODO] more nice name
-                             , l7ServerName = (T.pack host)
-                             , l7UserName = (T.pack user)
-                             , l7Password = (T.pack pass)
-                             , l7Database = (T.pack database)
+                             , l7ClientHostName = T.pack hostname
+                             , l7AppName = T.pack app
+                             , l7ServerName = T.pack serv
+                             , l7UserName = T.pack user
+                             , l7Password = T.pack pass
+                             , l7Database = T.pack database
                              }
   return login7
 
@@ -192,8 +230,8 @@ validLoginAck login7 (TokenStreams loginResTokenStreams) = do
                         xs -> return xs
     throwIO $ AuthError info
 
-  let [TSLoginAck _ tdsVersion _ _] = loginAcks
-  when (l7TdsVersion login7 /= tdsVersion) $ throwIO $ ProtocolError "validLoginAck: Server reported unsupported tds version"
+  let [TSLoginAck _ tdsVersion' _ _] = loginAcks
+  when (tdsVersion /= tdsVersion') $ throwIO $ ProtocolError "validLoginAck: Server reported unsupported tds version"
 
   return ()
   where
