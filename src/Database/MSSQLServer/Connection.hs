@@ -5,7 +5,7 @@ module Database.MSSQLServer.Connection ( ConnectInfo(..)
                                        , defaultConnectInfo
                                        , Connection(..)
                                        , connect
-                                       , connectWithoutEncription
+                                       , connectWithoutEncryption
                                        , close
                                        , ProtocolError(..)
                                        , AuthError(..)
@@ -58,6 +58,7 @@ data ConnectInfo = ConnectInfo { connectHost :: String
                                , connectDatabase :: String
                                , connectUser :: String
                                , connectPassword :: String
+                               , connectEncryption :: Word8
                                , connectOptionFlags1 :: Word8
                                , connectOptionFlags2 :: Word8
                                , connectOptionFlags3 :: Word8
@@ -78,6 +79,7 @@ defaultConnectInfo =
                  , connectDatabase = T.unpack $ l7Database l7
                  , connectUser = T.unpack $ l7UserName l7
                  , connectPassword = T.unpack $ l7Password l7
+                 , connectEncryption = 0x00 -- 0x00: ENCRYPT_OFF (Encrypt login packet only), 0x02: ENCRYPT_NOT_SUP (No encryption)
                  , connectOptionFlags1 = l7OptionFlags1 l7
                  , connectOptionFlags2 = l7OptionFlags2 l7
                  , connectOptionFlags3 = l7OptionFlags3 l7
@@ -94,68 +96,43 @@ newtype Connection = Connection Socket
 
 
 connect :: ConnectInfo -> IO Connection
-connect ci@(ConnectInfo host port _ _ _ _ _ _ _ _ _ _ _ _) = do
+connect ci@(ConnectInfo host port _ _ _ encrypt _ _ _ _ _ _ _ _ _) = do
   addr <- resolve host port
   sock <- connect' addr
   
-  Prelogin plResOpts <- performPrelogin sock 0x00 -- ENCRYPT_OFF (Encrypt login packet only)
+  Prelogin plResOpts <- performPrelogin sock encrypt
 
-  [PLOEncription modeEnc]  <- case filter isPLOEncription plResOpts of
-                                [] -> throwIO $ ProtocolError "connect: PLOEncription is necessary"
+  [PLOEncryption modeEnc]  <- case filter isPLOEncryption plResOpts of
+                                [] -> throwIO $ ProtocolError "connect: PLOEncryption is necessary"
                                 xs -> return xs
   [PLOMars modeMars] <- case filter isPLOMars plResOpts of
                           [] -> throwIO $ ProtocolError "connect: PLOMars is necessary"
                           xs -> return xs
-  when (modeEnc/=0x00)  $ throwIO $ ProtocolError "connect: Server reported unsupported encription mode"
+  when (modeEnc/=encrypt)  $ throwIO $ ProtocolError "connect: Server reported unsupported encryption mode"
   when (modeMars/=0) $ throwIO $ ProtocolError "connect: Server reported unsupported mars mode"
 
   login7 <- newLogin7 ci
 
-  ---
-  --- TLS handshake
-  ---
-  tlsContext <- contextNew sock host
-  TLS.handshake tlsContext
+  ServerMessage tss <- case encrypt of
+    0x00 -> do
+      ---
+      --- TLS handshake
+      ---
+      tlsContext <- contextNew sock host
+      TLS.handshake tlsContext
 
-  --- 
-  --- Login with encripted packet
-  --- 
-  TLS.sendData tlsContext $ encode $ CMLogin7 login7
-  ServerMessage tss <- readMessage sock $ Get.runGetIncremental get
-
-  --- 
-  --- Verify Ack
-  --- 
-  validLoginAck login7 tss
-  
-  return $ Connection sock
-
-
-
-connectWithoutEncription :: ConnectInfo -> IO Connection
-connectWithoutEncription ci@(ConnectInfo host port _ _ _ _ _ _ _ _ _ _ _ _) = do
-  addr <- resolve host port
-  sock <- connect' addr
-  
-  Prelogin plResOpts <- performPrelogin sock 0x02 -- ENCRYPT_NOT_SUP (No encription)
-
-  [PLOEncription modeEnc]  <- case filter isPLOEncription plResOpts of
-                                [] -> throwIO $ ProtocolError "connectWithoutEncription: PLOEncription is necessary"
-                                xs -> return xs
-  [PLOMars modeMars] <- case filter isPLOMars plResOpts of
-                          [] -> throwIO $ ProtocolError "connectWithoutEncription: PLOMars is necessary"
-                          xs -> return xs
-  when (modeEnc/=0x02)  $ throwIO $ ProtocolError "connectWithoutEncription: Server reported unsupported encription mode"
-  when (modeMars/=0) $ throwIO $ ProtocolError "connectWithoutEncription: Server reported unsupported mars mode"
-
-  login7 <- newLogin7 ci
-  
-  --- 
-  --- Login without encripted packet
-  --- 
-  sendAll sock $ encode $ CMLogin7 login7
-  ServerMessage tss <- readMessage sock $ Get.runGetIncremental get
-
+      --- 
+      --- Login with encrypted packet
+      --- 
+      TLS.sendData tlsContext $ encode $ CMLogin7 login7
+      readMessage sock $ Get.runGetIncremental get
+    0x02 -> do
+      --- 
+      --- Login without encryipted packet
+      --- 
+      sendAll sock $ encode $ CMLogin7 login7
+      readMessage sock $ Get.runGetIncremental get
+      
   --- 
   --- Verify Ack
   --- 
@@ -163,6 +140,10 @@ connectWithoutEncription ci@(ConnectInfo host port _ _ _ _ _ _ _ _ _ _ _ _) = do
   
   return $ Connection sock
 
+
+
+connectWithoutEncryption :: ConnectInfo -> IO Connection
+connectWithoutEncryption ci = connect $ ci {connectEncryption = 0x02}
 
 
 close :: Connection -> IO ()
@@ -180,7 +161,7 @@ performPrelogin sock enc = do
   -- [TODO] Threadid support
   -- [TODO] Mars support
   let clientPrelogin = Prelogin [ PLOVersion 9 0 0 0
-                                , PLOEncription enc
+                                , PLOEncryption enc
                                 , PLOInstopt "MSSQLServer"
                                 , PLOThreadid (Just 1000) -- [TODO]
                                 , PLOMars 0 -- [TODO]
@@ -193,7 +174,7 @@ performPrelogin sock enc = do
 
   
 newLogin7 :: ConnectInfo -> IO Login7
-newLogin7 (ConnectInfo host port database user pass optf1 optf2 optf3 typef tz coll lang app serv) = do
+newLogin7 (ConnectInfo _ _ database user pass _ optf1 optf2 optf3 typef tz coll lang app serv) = do
   ---
   --- Login7
   ---
@@ -271,9 +252,9 @@ validLoginAck login7 (TokenStreams loginResTokenStreams) = do
 
 
 
-isPLOEncription :: PreloginOption -> Bool
-isPLOEncription (PLOEncription{}) = True
-isPLOEncription _ = False
+isPLOEncryption :: PreloginOption -> Bool
+isPLOEncryption (PLOEncryption{}) = True
+isPLOEncryption _ = False
 
 isPLOMars :: PreloginOption -> Bool
 isPLOMars (PLOMars{}) = True
