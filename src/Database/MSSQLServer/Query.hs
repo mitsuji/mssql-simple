@@ -23,6 +23,10 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                   , RpcParamSet (..)
                                   , RpcParam (..)
                                   , RpcParamName
+                                  , nvarcharVal
+                                  , ntextVal
+                                  , varcharVal
+                                  , textVal
                                   , Only (..)
                                   
                                   -- * Exceptions
@@ -98,6 +102,20 @@ rpc (Connection sock) queries = do
     splitBy q xs = case spanBy q xs of
       (ys,[]) -> [ys]
       (ys,zs) -> ys:splitBy q zs
+
+
+
+nvarcharVal :: RpcParamName -> T.Text -> RpcParam T.Text
+nvarcharVal name ts = RpcParamVal name (TINVarChar (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) ts
+
+ntextVal :: RpcParamName -> T.Text -> RpcParam T.Text
+ntextVal name ts = RpcParamVal name (TINText (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) ts
+
+varcharVal :: RpcParamName -> B.ByteString -> RpcParam B.ByteString
+varcharVal name bs = RpcParamVal name (TIBigVarChar (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) bs
+
+textVal :: RpcParamName -> B.ByteString -> RpcParam B.ByteString
+textVal name bs = RpcParamVal name (TIText (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) bs
 
 
 
