@@ -30,6 +30,7 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                   , Only (..)
                                   
                                   -- * Exceptions
+                                  , withTransaction
                                   , QueryError (..)
                                   ) where
 
@@ -49,7 +50,7 @@ import Data.Binary (Binary(..),encode)
 import qualified Data.Binary.Get as Get
 
 import Control.Monad (when)
-import Control.Exception (Exception(..),throwIO)
+import Control.Exception (Exception(..),throwIO,onException)
 
 import Database.Tds.Message
 
@@ -116,6 +117,19 @@ varcharVal name bs = RpcParamVal name (TIBigVarChar (fromIntegral $ B.length bs)
 
 textVal :: RpcParamName -> B.ByteString -> RpcParam B.ByteString
 textVal name bs = RpcParamVal name (TIText (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) bs
+
+
+
+withTransaction :: Connection -> IO a -> IO a
+withTransaction conn act = do
+  begin
+  r <- act `onException` rollback
+  commit
+  return r
+    where
+      begin = sql conn $ T.pack "BEGIN TRANSACTION" :: IO ()
+      commit = sql conn $ T.pack "COMMIT TRANSACTION" :: IO ()
+      rollback = sql conn $ T.pack "ROLLBACK TRANSACTION":: IO ()
 
 
 
