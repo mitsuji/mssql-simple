@@ -48,6 +48,7 @@ import qualified Data.Text as T
 
 import Data.Binary (Binary(..),encode)
 import qualified Data.Binary.Get as Get
+import qualified Data.Binary.Put as Put
 
 import Control.Monad (when)
 import Control.Exception (Exception(..),throwIO,onException)
@@ -68,9 +69,9 @@ instance Exception QueryError
 
 
 sql :: ResultSet a => Connection -> T.Text -> IO a
-sql (Connection sock) query = do
-  sendAll sock $ encode $ CMSqlBatch $ SqlBatch query
-  ServerMessage (TokenStreams tss) <- readMessage sock $ Get.runGetIncremental get
+sql (Connection sock ps) query = do
+  sendAll sock $ Put.runPut $ putClientMessage ps $ CMSqlBatch $ SqlBatch query
+  TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage
 
   case filter isTSError tss of
     [] -> return $ fromTokenStreams tss
@@ -79,9 +80,9 @@ sql (Connection sock) query = do
 
 
 rpc :: (RpcQuerySet a, RpcResultSet b) => Connection -> a -> IO b
-rpc (Connection sock) queries = do
-  sendAll sock $ encode $ CMRpcRequest $ toRpcRequest queries
-  ServerMessage (TokenStreams tss) <- readMessage sock $ Get.runGetIncremental get
+rpc (Connection sock ps) queries = do
+  sendAll sock $ Put.runPut $ putClientMessage ps $ CMRpcRequest $ toRpcRequest queries
+  TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage
 
   case filter isTSError tss of
     [] -> return $ fromListOfTokenStreams $ splitBy isTSDoneProc tss

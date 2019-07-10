@@ -25,7 +25,7 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Encoding as T
 
-import Data.Binary (Binary(..),encode)
+import Data.Binary (Binary(..))
 import qualified Data.Binary.Put as Put
 import qualified Data.Binary.Get as Get
 
@@ -38,7 +38,7 @@ import Network.HostName (getHostName)
 import Database.Tds.Message
 import Database.Tds.Transport (contextNew)
 
-import Data.Word (Word8)
+import Data.Word (Word8,Word32)
 import Data.Int (Int32)
 import Data.Typeable(Typeable)
 
@@ -53,21 +53,22 @@ instance Exception AuthError
 
 
 
-data ConnectInfo = ConnectInfo { connectHost :: String
-                               , connectPort :: String
-                               , connectDatabase :: String
-                               , connectUser :: String
-                               , connectPassword :: String
-                               , connectEncryption :: Word8
-                               , connectOptionFlags1 :: Word8
-                               , connectOptionFlags2 :: Word8
-                               , connectOptionFlags3 :: Word8
-                               , connectTypeFlags :: Word8
-                               , connectTimeZone :: Int32
-                               , connectCollation :: Collation32
-                               , connectLanguage :: String
-                               , connectAppName :: String
-                               , connectServerName :: String
+data ConnectInfo = ConnectInfo { connectHost :: !String
+                               , connectPort :: !String
+                               , connectDatabase :: !String
+                               , connectUser :: !String
+                               , connectPassword :: !String
+                               , connectEncryption :: !Word8
+                               , connectPacketSize :: !Word32
+                               , connectOptionFlags1 :: !Word8
+                               , connectOptionFlags2 :: !Word8
+                               , connectOptionFlags3 :: !Word8
+                               , connectTypeFlags :: !Word8
+                               , connectTimeZone :: !Int32
+                               , connectCollation :: !Collation32
+                               , connectLanguage :: !String
+                               , connectAppName :: !String
+                               , connectServerName :: !String
                                }
 
 defaultConnectInfo :: ConnectInfo
@@ -80,6 +81,7 @@ defaultConnectInfo =
                  , connectUser = T.unpack $ l7UserName l7
                  , connectPassword = T.unpack $ l7Password l7
                  , connectEncryption = 0x00 -- 0x00: ENCRYPT_OFF (Encrypt login packet only), 0x02: ENCRYPT_NOT_SUP (No encryption)
+                 , connectPacketSize = l7PacketSize l7
                  , connectOptionFlags1 = l7OptionFlags1 l7
                  , connectOptionFlags2 = l7OptionFlags2 l7
                  , connectOptionFlags3 = l7OptionFlags3 l7
@@ -92,15 +94,16 @@ defaultConnectInfo =
                  }
 
                    
-newtype Connection = Connection Socket
+--newtype Connection = Connection Socket
+data Connection = Connection Socket Word32
 
 
 connect :: ConnectInfo -> IO Connection
-connect ci@(ConnectInfo host port _ _ _ encrypt _ _ _ _ _ _ _ _ _) = do
+connect ci@(ConnectInfo host port _ _ _ encrypt ps _ _ _ _ _ _ _ _ _) = do
   addr <- resolve host port
   sock <- connect' addr
   
-  Prelogin plResOpts <- performPrelogin sock encrypt
+  Prelogin plResOpts <- performPrelogin sock ps encrypt
 
   [PLOEncryption modeEnc]  <- case filter isPLOEncryption plResOpts of
                                 [] -> throwIO $ ProtocolError "connect: PLOEncryption is necessary"
@@ -113,7 +116,7 @@ connect ci@(ConnectInfo host port _ _ _ encrypt _ _ _ _ _ _ _ _ _) = do
 
   login7 <- newLogin7 ci
 
-  ServerMessage tss <- case encrypt of
+  tss <- case encrypt of
     0x00 -> do
       ---
       --- TLS handshake
@@ -124,21 +127,21 @@ connect ci@(ConnectInfo host port _ _ _ encrypt _ _ _ _ _ _ _ _ _) = do
       --- 
       --- Login with encrypted packet
       --- 
-      TLS.sendData tlsContext $ encode $ CMLogin7 login7
-      readMessage sock $ Get.runGetIncremental get
+      TLS.sendData tlsContext $ Put.runPut $ putClientMessage ps $ CMLogin7 login7
+      readMessage sock $ Get.runGetIncremental getServerMessage
     0x02 -> do
       --- 
       --- Login without encryipted packet
       --- 
-      sendAll sock $ encode $ CMLogin7 login7
-      readMessage sock $ Get.runGetIncremental get
+      sendAll sock $ Put.runPut $ putClientMessage ps $ CMLogin7 login7
+      readMessage sock $ Get.runGetIncremental getServerMessage
       
   --- 
   --- Verify Ack
   --- 
   validLoginAck login7 tss
   
-  return $ Connection sock
+  return $ Connection sock ps
 
 
 
@@ -147,13 +150,13 @@ connectWithoutEncryption ci = connect $ ci {connectEncryption = 0x02}
 
 
 close :: Connection -> IO ()
-close (Connection sock) = Socket.close sock
+close (Connection sock _ ) = Socket.close sock
 
 
 
 
-performPrelogin :: Socket -> Word8 -> IO Prelogin
-performPrelogin sock enc = do
+performPrelogin :: Socket -> Word32 -> Word8 -> IO Prelogin
+performPrelogin sock ps enc = do
   -- https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/60f56408-0188-4cd5-8b90-25c6f2423868
   --
   -- Prelogin
@@ -166,15 +169,15 @@ performPrelogin sock enc = do
                                 , PLOThreadid (Just 1000) -- [TODO]
                                 , PLOMars 0 -- [TODO]
                                 ]
-  sendAll sock $ encode $ CMPrelogin clientPrelogin
-  ServerMessage serverPrelogin <- readMessage sock $ Get.runGetIncremental get
+  sendAll sock $ Put.runPut $ putClientMessage ps $ CMPrelogin clientPrelogin
+  serverPrelogin <- readMessage sock $ Get.runGetIncremental getServerMessage
   
   return serverPrelogin
 
 
   
 newLogin7 :: ConnectInfo -> IO Login7
-newLogin7 (ConnectInfo _ _ database user pass _ optf1 optf2 optf3 typef tz coll lang app serv) = do
+newLogin7 (ConnectInfo _ _ database user pass _ _ optf1 optf2 optf3 typef tz coll lang app serv) = do
   ---
   --- Login7
   ---
