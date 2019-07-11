@@ -5,16 +5,22 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                     
                                   -- ** ResultSet
                                   , ResultSet (..)
+                                  , Result (..)
                                   , Row (..)
+                                  , Only (..)
                                   
                                   -- * RPC Query
                                   , rpc
                                   
+                                  -- ** RpcResponseSet
+                                  , RpcResponseSet (..)
+                                  , RpcResponse (..)
+                                  , RpcOutputSet (..)
+                                  
                                   -- ** RpcResultSet
                                   , RpcResultSet (..)
                                   , RpcResult (..)
-                                  , RpcOutputSet (..)
-                                  
+
                                   -- ** RpcQuerySet
                                   , RpcQuerySet (..)
                                   , RpcQuery (..)
@@ -27,7 +33,6 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                   , ntextVal
                                   , varcharVal
                                   , textVal
-                                  , Only (..)
                                   
                                   -- * Exceptions
                                   , withTransaction
@@ -57,8 +62,9 @@ import Database.Tds.Message
 
 import Database.MSSQLServer.Connection
 import Database.MSSQLServer.Query.Only
+import Database.MSSQLServer.Query.Row
 import Database.MSSQLServer.Query.ResultSet
-import Database.MSSQLServer.Query.RpcResultSet
+import Database.MSSQLServer.Query.RpcResponseSet
 import Database.MSSQLServer.Query.RpcQuerySet
 
 
@@ -79,7 +85,7 @@ sql (Connection sock ps) query = do
 
 
 
-rpc :: (RpcQuerySet a, RpcResultSet b) => Connection -> a -> IO b
+rpc :: (RpcQuerySet a, RpcResponseSet b) => Connection -> a -> IO b
 rpc (Connection sock ps) queries = do
   sendAll sock $ Put.runPut $ putClientMessage ps $ CMRpcRequest $ toRpcRequest queries
   TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage

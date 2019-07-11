@@ -26,6 +26,7 @@ import Database.MSSQLServer.Query.Only
 class RpcQuerySet a where
   toRpcRequest :: a -> RpcRequest
 
+-- [TODO] use Template Haskell
 instance (RpcQueryId a1, RpcParamSet b1) => RpcQuerySet (RpcQuery a1 b1) where
   toRpcRequest (RpcQuery a1 b1) = RpcRequest [r1]
     where
@@ -104,6 +105,7 @@ class RpcParamSet a where
 instance RpcParamSet () where
   toRpcReqBatchParams _ = []
 
+-- [TODO] use Template Haskell
 instance (Data a) => RpcParamSet (RpcParam a) where
   toRpcReqBatchParams v1 = [b1]
     where
