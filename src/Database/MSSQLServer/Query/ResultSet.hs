@@ -1,17 +1,16 @@
 {-# OPTIONS_HADDOCK hide #-}
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE FlexibleInstances #-}
 
 module Database.MSSQLServer.Query.ResultSet ( ResultSet (..)
-                                            , extractTableStreams
-                                            , Row (..)
+                                            , Result
                                             ) where
 
 
-import Control.Applicative((<$>),(<*>))
+import Control.Applicative((<$>),Applicative((<*>)),Alternative(empty))
 import Database.Tds.Message
+import Database.MSSQLServer.Query.Row
 import Database.MSSQLServer.Query.Only
-
+import Database.MSSQLServer.Query.TokenStreamParser
 
 
 
@@ -20,623 +19,83 @@ class ResultSet a where
 
 
 instance ResultSet () where
-  fromTokenStreams = f . extractTableStreams
-    where
-      f [] = ()
-      f _ = error "fromTokenStreams: List length must be 0"
+  fromTokenStreams xs = case parse noResult xs of
+                          [] -> error "fromTokenStreams(ResultSet ()): failed to parse"
+                          (x,_):_ -> x
 
 instance (Row a) => ResultSet [a] where
-  fromTokenStreams = f . extractTableStreams
+  fromTokenStreams xs = case parse listOfRow xs of
+                          [] -> error "fromTokenStreams(ResultSet [Row a]): failed to parse"
+                          (x,_):_ -> x
+
+instance ResultSet Int where
+  fromTokenStreams xs = case parse rowCount xs of
+                          [] -> error "fromTokenStreams(ResultSet Int): failed to parse"
+                          (x,_):_ -> x
+
+
+-- [TODO] use Template Haskell
+instance (Result a, Result b) => ResultSet (a, b) where
+  fromTokenStreams xs = case parse p xs of
+                          [] -> error "fromTokenStreams(ResultSet (Result a, Result b)): failed to parse"
+                          (x,_):_ -> x
     where
-      f [(m1,r1)] = b1
-        where
-          !b1 = fromListOfRawBytes m1 <$> r1
-      f _ = error "fromTokenStreams: List length must be 1"
+      p :: (Result a, Result b) => Parser (a, b)
+      p = do
+        !r1 <- resultParser :: (Result a) => Parser a
+        !r2 <- resultParser :: (Result b) => Parser b
+        return  (r1,r2)
 
-instance (Row a, Row b) => ResultSet ([a],[b]) where
-  fromTokenStreams = f . extractTableStreams
+instance (Result a, Result b, Result c) => ResultSet (a, b, c) where
+  fromTokenStreams xs = case parse p xs of
+                          [] -> error "fromTokenStreams(ResultSet (Result a, Result b, Result c)): failed to parse"
+                          (x,_):_ -> x
     where
-      f [(m1,r1),(m2,r2)] = (b1,b2)
-        where
-          !b1 = fromListOfRawBytes m1 <$> r1
-          !b2 = fromListOfRawBytes m2 <$> r2
-      f _ = error "fromTokenStreams: List length must be 2"
+      p :: (Result a, Result b, Result c) => Parser (a, b, c)
+      p = do
+        !r1 <- resultParser :: (Result a) => Parser a
+        !r2 <- resultParser :: (Result b) => Parser b
+        !r3 <- resultParser :: (Result c) => Parser c
+        return  (r1,r2,r3)
 
-instance (Row a, Row b, Row c) => ResultSet ([a],[b],[c]) where
-  fromTokenStreams = f . extractTableStreams
+instance (Result a, Result b, Result c, Result d) => ResultSet (a, b, c, d) where
+  fromTokenStreams xs = case parse p xs of
+                          [] -> error "fromTokenStreams(ResultSet (Result a, Result b, Result c, Result d)): failed to parse"
+                          (x,_):_ -> x
     where
-      f [(m1,r1),(m2,r2),(m3,r3)] = (b1,b2,b3)
-        where
-          !b1 = fromListOfRawBytes m1 <$> r1
-          !b2 = fromListOfRawBytes m2 <$> r2
-          !b3 = fromListOfRawBytes m3 <$> r3
-      f _ = error "fromTokenStreams: List length must be 3"
+      p :: (Result a, Result b, Result c, Result d) => Parser (a, b, c, d)
+      p = do
+        !r1 <- resultParser :: (Result a) => Parser a
+        !r2 <- resultParser :: (Result b) => Parser b
+        !r3 <- resultParser :: (Result c) => Parser c
+        !r4 <- resultParser :: (Result d) => Parser d
+        return  (r1,r2,r3,r4)
 
-instance (Row a, Row b, Row c, Row d) => ResultSet ([a],[b],[c],[d]) where
-  fromTokenStreams = f . extractTableStreams
+instance (Result a, Result b, Result c, Result d, Result e) => ResultSet (a, b, c, d, e) where
+  fromTokenStreams xs = case parse p xs of
+                          [] -> error "fromTokenStreams(ResultSet (Result a, Result b, Result c, Result d, Result e)): failed to parse"
+                          (x,_):_ -> x
     where
-      f [(m1,r1),(m2,r2),(m3,r3),(m4,r4)] = (b1,b2,b3,b4)
-        where
-          !b1 = fromListOfRawBytes m1 <$> r1
-          !b2 = fromListOfRawBytes m2 <$> r2
-          !b3 = fromListOfRawBytes m3 <$> r3
-          !b4 = fromListOfRawBytes m4 <$> r4
-      f _ = error "fromTokenStreams: List length must be 4"
-
-instance (Row a, Row b, Row c, Row d, Row e) => ResultSet ([a],[b],[c],[d],[e]) where
-  fromTokenStreams = f . extractTableStreams
-    where
-      f [(m1,r1),(m2,r2),(m3,r3),(m4,r4),(m5,r5)] = (b1,b2,b3,b4,b5)
-        where
-          !b1 = fromListOfRawBytes m1 <$> r1
-          !b2 = fromListOfRawBytes m2 <$> r2
-          !b3 = fromListOfRawBytes m3 <$> r3
-          !b4 = fromListOfRawBytes m4 <$> r4
-          !b5 = fromListOfRawBytes m5 <$> r5
-      f _ = error "fromTokenStreams: List length must be 5"
+      p :: (Result a, Result b, Result c, Result d, Result e) => Parser (a, b, c, d, e)
+      p = do
+        !r1 <- resultParser :: (Result a) => Parser a
+        !r2 <- resultParser :: (Result b) => Parser b
+        !r3 <- resultParser :: (Result c) => Parser c
+        !r4 <- resultParser :: (Result d) => Parser d
+        !r5 <- resultParser :: (Result e) => Parser e
+        return  (r1,r2,r3,r4,r5)
 
 
 
+class Result a where
+  resultParser :: Parser a
 
-extractTableStreams :: [TokenStream] -> [([MetaColumnData],[[RawBytes]])]
-extractTableStreams = map extract . span' . ( filter $ \x -> isTSColMetaData x || isTSRow x )
-  where
-    -- [(TSColMetaData,[TSRow])]
-    span' :: [TokenStream] -> [(TokenStream,[TokenStream])]
-    span' [] = []
-    span' (cmd@TSColMetaData{}:xs) =
-      let
-        (rs,xs') = span isTSRow xs
-      in (cmd,rs):span' xs'
-    span' _ = error "extractTableStrams: TSColMetaData is necesarry"
+instance Result () where
+  resultParser = noResult
 
-    isTSColMetaData :: TokenStream -> Bool
-    isTSColMetaData (TSColMetaData{}) = True
-    isTSColMetaData _ = False
+instance Row a => Result [a] where
+  resultParser = listOfRow
 
-    isTSRow :: TokenStream -> Bool
-    isTSRow (TSRow{}) = True
-    isTSRow _ = False
-
-    extract :: (TokenStream,[TokenStream]) -> ([MetaColumnData],[[RawBytes]])
-    extract = \(tsCmd,tsRss) ->
-      let (TSColMetaData (maybeCmd)) = tsCmd
-          cds = case (\(ColMetaData x) -> x) <$> maybeCmd of
-            Nothing -> error "extractTableStrams: ColMetaData is necessary"
-            Just cds' -> cds'
-          datas = (\(TSRow row) -> rawBytes <$> row) <$> tsRss
-      in (cds, datas)
-      where
-        rawBytes :: RowColumnData -> RawBytes
-        rawBytes (RCDOrdinal dt) = dt
-        rawBytes (RCDLarge _ _ dt) = dt
-
-
-mcdTypeInfo :: MetaColumnData -> TypeInfo
-mcdTypeInfo (MetaColumnData _ _ ti _ _) = ti
-
-
-class Row a where
-  fromListOfRawBytes :: [MetaColumnData] -> [RawBytes] -> a
-
-instance Row () where
-  fromListOfRawBytes [] [] = ()
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 0"
-
-instance (Data a) => Row (Only a) where
-  fromListOfRawBytes [m1] [b1] = Only d1
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 1"
-
-instance (Data a, Data b) => Row (a,b) where
-  fromListOfRawBytes [m1,m2] [b1,b2] = (d1,d2)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 2"
-
-instance (Data a, Data b, Data c) => Row (a,b,c) where
-  fromListOfRawBytes [m1,m2,m3] [b1,b2,b3] = (d1,d2,d3)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 3"
-
-instance (Data a, Data b, Data c, Data d) => Row (a,b,c,d) where
-  fromListOfRawBytes [m1,m2,m3,m4] [b1,b2,b3,b4] = (d1,d2,d3,d4)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 4"
-
-instance (Data a, Data b, Data c, Data d, Data e) => Row (a,b,c,d,e) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5] [b1,b2,b3,b4,b5] = (d1,d2,d3,d4,d5)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 5"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f) => Row (a,b,c,d,e,f) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6] [b1,b2,b3,b4,b5,b6] = (d1,d2,d3,d4,d5,d6)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 6"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g) => Row (a,b,c,d,e,f,g) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7] [b1,b2,b3,b4,b5,b6,b7] = (d1,d2,d3,d4,d5,d6,d7)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 7"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h) => Row (a,b,c,d,e,f,g,h) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8] [b1,b2,b3,b4,b5,b6,b7,b8] = (d1,d2,d3,d4,d5,d6,d7,d8)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 8"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i) => Row (a,b,c,d,e,f,g,h,i) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9] [b1,b2,b3,b4,b5,b6,b7,b8,b9] = (d1,d2,d3,d4,d5,d6,d7,d8,d9)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 9"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j) => Row (a,b,c,d,e,f,g,h,i,j) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10] = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 10"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k) => Row (a,b,c,d,e,f,g,h,i,j,k) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 11"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l) => Row (a,b,c,d,e,f,g,h,i,j,k,l) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 12"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m) => Row (a,b,c,d,e,f,g,h,i,j,k,l,m) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 13"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n) => Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 14"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 15"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 16"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p, Data q) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-      !d17 = fromRawBytes (mcdTypeInfo m17) b17
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 17"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p, Data q, Data r) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-      !d17 = fromRawBytes (mcdTypeInfo m17) b17
-      !d18 = fromRawBytes (mcdTypeInfo m18) b18
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 18"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p, Data q, Data r, Data s) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18,m19] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-      !d17 = fromRawBytes (mcdTypeInfo m17) b17
-      !d18 = fromRawBytes (mcdTypeInfo m18) b18
-      !d19 = fromRawBytes (mcdTypeInfo m19) b19
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 19"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p, Data q, Data r, Data s
-         , Data t) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18,m19,m20] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19,d20)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-      !d17 = fromRawBytes (mcdTypeInfo m17) b17
-      !d18 = fromRawBytes (mcdTypeInfo m18) b18
-      !d19 = fromRawBytes (mcdTypeInfo m19) b19
-      !d20 = fromRawBytes (mcdTypeInfo m20) b20
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 20"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p, Data q, Data r, Data s
-         , Data t, Data u) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18,m19,m20,m21] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20,b21]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19,d20,d21)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-      !d17 = fromRawBytes (mcdTypeInfo m17) b17
-      !d18 = fromRawBytes (mcdTypeInfo m18) b18
-      !d19 = fromRawBytes (mcdTypeInfo m19) b19
-      !d20 = fromRawBytes (mcdTypeInfo m20) b20
-      !d21 = fromRawBytes (mcdTypeInfo m21) b21
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 21"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p, Data q, Data r, Data s
-         , Data t, Data u, Data v) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18,m19,m20,m21,m22] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20,b21,b22]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19,d20,d21,d22)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-      !d17 = fromRawBytes (mcdTypeInfo m17) b17
-      !d18 = fromRawBytes (mcdTypeInfo m18) b18
-      !d19 = fromRawBytes (mcdTypeInfo m19) b19
-      !d20 = fromRawBytes (mcdTypeInfo m20) b20
-      !d21 = fromRawBytes (mcdTypeInfo m21) b21
-      !d22 = fromRawBytes (mcdTypeInfo m22) b22
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 22"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p, Data q, Data r, Data s
-         , Data t, Data u, Data v, Data w) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18,m19,m20,m21,m22,m23] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20,b21,b22,b23]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19,d20,d21,d22,d23)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-      !d17 = fromRawBytes (mcdTypeInfo m17) b17
-      !d18 = fromRawBytes (mcdTypeInfo m18) b18
-      !d19 = fromRawBytes (mcdTypeInfo m19) b19
-      !d20 = fromRawBytes (mcdTypeInfo m20) b20
-      !d21 = fromRawBytes (mcdTypeInfo m21) b21
-      !d22 = fromRawBytes (mcdTypeInfo m22) b22
-      !d23 = fromRawBytes (mcdTypeInfo m23) b23
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 23"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p, Data q, Data r, Data s
-         , Data t, Data u, Data v, Data w, Data x) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18,m19,m20,m21,m22,m23,m24] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20,b21,b22,b23,b24]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19,d20,d21,d22,d23,d24)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-      !d17 = fromRawBytes (mcdTypeInfo m17) b17
-      !d18 = fromRawBytes (mcdTypeInfo m18) b18
-      !d19 = fromRawBytes (mcdTypeInfo m19) b19
-      !d20 = fromRawBytes (mcdTypeInfo m20) b20
-      !d21 = fromRawBytes (mcdTypeInfo m21) b21
-      !d22 = fromRawBytes (mcdTypeInfo m22) b22
-      !d23 = fromRawBytes (mcdTypeInfo m23) b23
-      !d24 = fromRawBytes (mcdTypeInfo m24) b24
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 24"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p, Data q, Data r, Data s
-         , Data t, Data u, Data v, Data w, Data x, Data y) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18,m19,m20,m21,m22,m23,m24,m25] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20,b21,b22,b23,b24,b25]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19,d20,d21,d22,d23,d24,d25)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-      !d17 = fromRawBytes (mcdTypeInfo m17) b17
-      !d18 = fromRawBytes (mcdTypeInfo m18) b18
-      !d19 = fromRawBytes (mcdTypeInfo m19) b19
-      !d20 = fromRawBytes (mcdTypeInfo m20) b20
-      !d21 = fromRawBytes (mcdTypeInfo m21) b21
-      !d22 = fromRawBytes (mcdTypeInfo m22) b22
-      !d23 = fromRawBytes (mcdTypeInfo m23) b23
-      !d24 = fromRawBytes (mcdTypeInfo m24) b24
-      !d25 = fromRawBytes (mcdTypeInfo m25) b25
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 25"
-
-instance (Data a, Data b, Data c, Data d, Data e, Data f, Data g, Data h, Data i, Data j, Data k, Data l, Data m, Data n, Data o, Data p, Data q, Data r, Data s
-         , Data t, Data u, Data v, Data w, Data x, Data y, Data z) =>
-         Row (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z) where
-  fromListOfRawBytes [m1,m2,m3,m4,m5,m6,m7,m8,m9,m10,m11,m12,m13,m14,m15,m16,m17,m18,m19,m20,m21,m22,m23,m24,m25,m26] [b1,b2,b3,b4,b5,b6,b7,b8,b9,b10,b11,b12,b13,b14,b15,b16,b17,b18,b19,b20,b21,b22,b23,b24,b25,b26]
-    = (d1,d2,d3,d4,d5,d6,d7,d8,d9,d10,d11,d12,d13,d14,d15,d16,d17,d18,d19,d20,d21,d22,d23,d24,d25,d26)
-    where
-      !d1 = fromRawBytes (mcdTypeInfo m1) b1
-      !d2 = fromRawBytes (mcdTypeInfo m2) b2
-      !d3 = fromRawBytes (mcdTypeInfo m3) b3
-      !d4 = fromRawBytes (mcdTypeInfo m4) b4
-      !d5 = fromRawBytes (mcdTypeInfo m5) b5
-      !d6 = fromRawBytes (mcdTypeInfo m6) b6
-      !d7 = fromRawBytes (mcdTypeInfo m7) b7
-      !d8 = fromRawBytes (mcdTypeInfo m8) b8
-      !d9 = fromRawBytes (mcdTypeInfo m9) b9
-      !d10 = fromRawBytes (mcdTypeInfo m10) b10
-      !d11 = fromRawBytes (mcdTypeInfo m11) b11
-      !d12 = fromRawBytes (mcdTypeInfo m12) b12
-      !d13 = fromRawBytes (mcdTypeInfo m13) b13
-      !d14 = fromRawBytes (mcdTypeInfo m14) b14
-      !d15 = fromRawBytes (mcdTypeInfo m15) b15
-      !d16 = fromRawBytes (mcdTypeInfo m16) b16
-      !d17 = fromRawBytes (mcdTypeInfo m17) b17
-      !d18 = fromRawBytes (mcdTypeInfo m18) b18
-      !d19 = fromRawBytes (mcdTypeInfo m19) b19
-      !d20 = fromRawBytes (mcdTypeInfo m20) b20
-      !d21 = fromRawBytes (mcdTypeInfo m21) b21
-      !d22 = fromRawBytes (mcdTypeInfo m22) b22
-      !d23 = fromRawBytes (mcdTypeInfo m23) b23
-      !d24 = fromRawBytes (mcdTypeInfo m24) b24
-      !d25 = fromRawBytes (mcdTypeInfo m25) b25
-      !d26 = fromRawBytes (mcdTypeInfo m26) b26
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 26"
-
+instance Result Int where
+  resultParser = rowCount
 

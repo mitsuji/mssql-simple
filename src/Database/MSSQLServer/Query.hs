@@ -5,16 +5,22 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                     
                                   -- ** ResultSet
                                   , ResultSet (..)
+                                  , Result (..)
                                   , Row (..)
+                                  , Only (..)
                                   
                                   -- * RPC Query
                                   , rpc
                                   
+                                  -- ** RpcResponseSet
+                                  , RpcResponseSet (..)
+                                  , RpcResponse (..)
+                                  , RpcOutputSet (..)
+                                  
                                   -- ** RpcResultSet
                                   , RpcResultSet (..)
                                   , RpcResult (..)
-                                  , RpcOutputSet (..)
-                                  
+
                                   -- ** RpcQuerySet
                                   , RpcQuerySet (..)
                                   , RpcQuery (..)
@@ -27,9 +33,9 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                   , ntextVal
                                   , varcharVal
                                   , textVal
-                                  , Only (..)
                                   
                                   -- * Exceptions
+                                  , withTransaction
                                   , QueryError (..)
                                   ) where
 
@@ -47,16 +53,18 @@ import qualified Data.Text as T
 
 import Data.Binary (Binary(..),encode)
 import qualified Data.Binary.Get as Get
+import qualified Data.Binary.Put as Put
 
 import Control.Monad (when)
-import Control.Exception (Exception(..),throwIO)
+import Control.Exception (Exception(..),throwIO,onException)
 
 import Database.Tds.Message
 
 import Database.MSSQLServer.Connection
 import Database.MSSQLServer.Query.Only
+import Database.MSSQLServer.Query.Row
 import Database.MSSQLServer.Query.ResultSet
-import Database.MSSQLServer.Query.RpcResultSet
+import Database.MSSQLServer.Query.RpcResponseSet
 import Database.MSSQLServer.Query.RpcQuerySet
 
 
@@ -67,9 +75,9 @@ instance Exception QueryError
 
 
 sql :: ResultSet a => Connection -> T.Text -> IO a
-sql (Connection sock) query = do
-  sendAll sock $ encode $ CMSqlBatch $ SqlBatch query
-  ServerMessage (TokenStreams tss) <- readMessage sock $ Get.runGetIncremental get
+sql (Connection sock ps) query = do
+  sendAll sock $ Put.runPut $ putClientMessage ps $ CMSqlBatch $ SqlBatch query
+  TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage
 
   case filter isTSError tss of
     [] -> return $ fromTokenStreams tss
@@ -77,10 +85,10 @@ sql (Connection sock) query = do
 
 
 
-rpc :: (RpcQuerySet a, RpcResultSet b) => Connection -> a -> IO b
-rpc (Connection sock) queries = do
-  sendAll sock $ encode $ CMRpcRequest $ toRpcRequest queries
-  ServerMessage (TokenStreams tss) <- readMessage sock $ Get.runGetIncremental get
+rpc :: (RpcQuerySet a, RpcResponseSet b) => Connection -> a -> IO b
+rpc (Connection sock ps) queries = do
+  sendAll sock $ Put.runPut $ putClientMessage ps $ CMRpcRequest $ toRpcRequest queries
+  TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage
 
   case filter isTSError tss of
     [] -> return $ fromListOfTokenStreams $ splitBy isTSDoneProc tss
@@ -116,6 +124,19 @@ varcharVal name bs = RpcParamVal name (TIBigVarChar (fromIntegral $ B.length bs)
 
 textVal :: RpcParamName -> B.ByteString -> RpcParam B.ByteString
 textVal name bs = RpcParamVal name (TIText (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) bs
+
+
+
+withTransaction :: Connection -> IO a -> IO a
+withTransaction conn act = do
+  begin
+  r <- act `onException` rollback
+  commit
+  return r
+    where
+      begin = sql conn $ T.pack "BEGIN TRANSACTION" :: IO ()
+      commit = sql conn $ T.pack "COMMIT TRANSACTION" :: IO ()
+      rollback = sql conn $ T.pack "ROLLBACK TRANSACTION":: IO ()
 
 
 
