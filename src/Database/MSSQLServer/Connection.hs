@@ -94,7 +94,6 @@ defaultConnectInfo =
                  }
 
                    
---newtype Connection = Connection Socket
 data Connection = Connection Socket Word32
 
 
@@ -163,7 +162,7 @@ performPrelogin sock ps enc = do
   --
   -- [TODO] Threadid support
   -- [TODO] Mars support
-  let clientPrelogin = Prelogin [ PLOVersion 9 0 0 0
+  let clientPrelogin = Prelogin [ PLOVersion 8 0 341 0
                                 , PLOEncryption enc
                                 , PLOInstopt "MSSQLServer"
                                 , PLOThreadid (Just 1000) -- [TODO]
@@ -184,12 +183,14 @@ newLogin7 (ConnectInfo _ _ database user pass _ _ optf1 optf2 optf3 typef tz col
   -- [TODO] process ID support
   -- [TODO] MAC address support
   hostname <- getHostName
-  let login7 = defaultLogin7 { l7OptionFlags1 = optf1
+  let login7 = defaultLogin7 { l7ClientProgVer = 1
+                             , l7OptionFlags1 = optf1
                              , l7OptionFlags2 = optf2
                              , l7OptionFlags3 = optf3
                              , l7TypeFlags = typef
                              , l7TimeZone = tz
                              , l7Collation = coll
+                             , l7CltIntName = T.pack "mssql-simple"
                              , l7Language = T.pack lang
                              , l7ClientPID = 1 -- [TODO]
                              , l7ClientMacAddr = B.pack [0x00,0x00,0x00,0x00,0x00,0x00] -- [TODO]
