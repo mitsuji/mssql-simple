@@ -31,6 +31,8 @@ https://github.com/mitsuji/mssql-simple-example/blob/master/app/Main.hs
 
 * Supports stored procedure RPC
 
+* Supports Transaction
+
 * 7.1 Revision 1 (SQL Server 2000 SP1 and later)
 
 * Tested with SQL Server 2008 R2, SQL Server 2014
@@ -42,9 +44,6 @@ https://github.com/mitsuji/mssql-simple-example/blob/master/app/Main.hs
 * Write tests
   * Write general tests
   
-
-* Transaction support
-
 
 * ETC
   * Encrypt entire connection support

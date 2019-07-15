@@ -32,6 +32,8 @@ https://github.com/mitsuji/mssql-simple-example/blob/master/app/Main.hs
 
 * ストアドプロシージャのRPCに対応
 
+* トランザクション処理に対応
+
 * 7.1 Revision 1 対応 (SQL Server 2000 SP1 以降)
 
 * SQL Server 2008 R2, SQL Server 2014 でテスト
@@ -43,9 +45,6 @@ https://github.com/mitsuji/mssql-simple-example/blob/master/app/Main.hs
 * Write tests
   * Write general tests
   
-
-* Transaction support
-
 
 * ETC
   * Encrypt entire connection support
