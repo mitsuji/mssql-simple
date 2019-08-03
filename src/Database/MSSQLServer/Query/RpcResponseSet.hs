@@ -4,170 +4,155 @@
 
 module Database.MSSQLServer.Query.RpcResponseSet ( RpcResponseSet (..)
                                                  , RpcResponse (..)
-                                                 , RpcResultSet
-                                                 , RpcResult
+                                                 , RpcResultSet (..)
+                                                 , RpcResult (..)
                                                  , RpcOutputSet (..)
                                                  ) where
 
-import Control.Applicative((<$>),(<*>))
+import Control.Applicative((<$>))
 import Database.Tds.Message
 import Database.MSSQLServer.Query.Row
 import Database.MSSQLServer.Query.Only
-
 import Database.MSSQLServer.Query.TokenStreamParser
 
 
 
 
 class RpcResponseSet a where
-  fromListOfTokenStreams :: [[TokenStream]] -> a
+  rpcResponseSetParser :: Parser a
 
 -- [TODO] use Template Haskell
 instance (RpcOutputSet a1, RpcResultSet b1) => RpcResponseSet (RpcResponse a1 b1) where
-  fromListOfTokenStreams [v1] = b1
-    where
-      !b1 = rpcResponse v1
-  fromListOfTokenStreams _ = error "fromListOfTokenStreams: List length must be 1"
-  
+  rpcResponseSetParser = rpcResponseParser
+
 instance (RpcOutputSet a1, RpcResultSet b1, RpcOutputSet a2, RpcResultSet b2) => RpcResponseSet (RpcResponse a1 b1, RpcResponse a2 b2) where
-  fromListOfTokenStreams [v1,v2] =  (b1, b2)
-    where
-      !b1 = rpcResponse v1
-      !b2 = rpcResponse v2
-  fromListOfTokenStreams _ = error "fromListOfTokenStreams: List length must be 2"
+  rpcResponseSetParser = do
+    !b1 <- rpcResponseParser
+    !b2 <- rpcResponseParser
+    return (b1,b2)
 
 instance (RpcOutputSet a1, RpcResultSet b1, RpcOutputSet a2, RpcResultSet b2, RpcOutputSet a3, RpcResultSet b3) => RpcResponseSet (RpcResponse a1 b1, RpcResponse a2 b2, RpcResponse a3 b3) where
-  fromListOfTokenStreams [v1,v2,v3] =  (b1, b2, b3)
-    where
-      !b1 = rpcResponse v1
-      !b2 = rpcResponse v2
-      !b3 = rpcResponse v3
-  fromListOfTokenStreams _ = error "fromListOfTokenStreams: List length must be 3"
+  rpcResponseSetParser = do
+    !b1 <- rpcResponseParser
+    !b2 <- rpcResponseParser
+    !b3 <- rpcResponseParser
+    return (b1,b2,b3)
 
 instance (RpcOutputSet a1, RpcResultSet b1, RpcOutputSet a2, RpcResultSet b2, RpcOutputSet a3, RpcResultSet b3, RpcOutputSet a4, RpcResultSet b4) => RpcResponseSet (RpcResponse a1 b1, RpcResponse a2 b2, RpcResponse a3 b3, RpcResponse a4 b4) where
-  fromListOfTokenStreams [v1,v2,v3,v4] =  (b1, b2, b3, b4)
-    where
-      !b1 = rpcResponse v1
-      !b2 = rpcResponse v2
-      !b3 = rpcResponse v3
-      !b4 = rpcResponse v4
-  fromListOfTokenStreams _ = error "fromListOfTokenStreams: List length must be 4"
+  rpcResponseSetParser = do
+    !b1 <- rpcResponseParser
+    !b2 <- rpcResponseParser
+    !b3 <- rpcResponseParser
+    !b4 <- rpcResponseParser
+    return (b1,b2,b3,b4)
 
 instance (RpcOutputSet a1, RpcResultSet b1, RpcOutputSet a2, RpcResultSet b2, RpcOutputSet a3, RpcResultSet b3, RpcOutputSet a4, RpcResultSet b4, RpcOutputSet a5, RpcResultSet b5) => RpcResponseSet (RpcResponse a1 b1, RpcResponse a2 b2, RpcResponse a3 b3, RpcResponse a4 b4, RpcResponse a5 b5) where
-  fromListOfTokenStreams [v1,v2,v3,v4,v5] =  (b1, b2, b3, b4, b5)
-    where
-      !b1 = rpcResponse v1
-      !b2 = rpcResponse v2
-      !b3 = rpcResponse v3
-      !b4 = rpcResponse v4
-      !b5 = rpcResponse v5
-  fromListOfTokenStreams _ = error "fromListOfTokenStreams: List length must be 5"
-
-
-
+  rpcResponseSetParser = do
+    !b1 <- rpcResponseParser
+    !b2 <- rpcResponseParser
+    !b3 <- rpcResponseParser
+    !b4 <- rpcResponseParser
+    !b5 <- rpcResponseParser
+    return (b1,b2,b3,b4,b5)
 
 -- (RpcOutputSet a, RpcResultSet b) => 
 data RpcResponse a b = RpcResponse Int a b
                    deriving (Show)
 
-rpcResponse :: (RpcOutputSet a, RpcResultSet b) => [TokenStream] -> RpcResponse a b
-rpcResponse tss =
-  -- [TODO] performance tuning (avoid filter all)
-  let [TSReturnStatus ret] = case filter isTSReturnStatus tss of
-                               [] -> error "rpcResponse: TSReturnStatus is necessary"
-                               xs -> xs
-      rvs = (\(TSReturnValue rv) -> rv) <$> filter isTSReturnValue tss
-      rss = fromTokenStreams tss
 
-  in RpcResponse (fromIntegral ret) (fromReturnValues rvs) rss
-
+rpcResponseParser :: (RpcOutputSet a, RpcResultSet b) => Parser (RpcResponse a b)
+rpcResponseParser = p
   where
+    p = do
+      rss <- rpcResultSetParser
+      _ <- many $ satisfy $ not . isTSReturnStatus
+      TSReturnStatus ret <- satisfy isTSReturnStatus
+      _ <- many $ satisfy $ not . isTSReturnValue
+      rvs <- many $ satisfy isTSReturnValue
+      _ <- many $ satisfy $ not . isTSDoneProc
+      _ <- satisfy isTSDoneProc
+
+      let rvs' = (\(TSReturnValue rv) -> rv) <$>  rvs
+      return $ RpcResponse (fromIntegral ret) (fromReturnValues rvs') rss
+
     isTSReturnStatus :: TokenStream -> Bool
     isTSReturnStatus (TSReturnStatus{}) = True
     isTSReturnStatus _ = False
-    
+
     isTSReturnValue :: TokenStream -> Bool
     isTSReturnValue (TSReturnValue{}) = True
     isTSReturnValue _ = False
 
+    isTSDoneProc :: TokenStream -> Bool
+    isTSDoneProc (TSDoneProc{}) = True
+    isTSDoneProc _ = False
+
 
 
 class RpcResultSet a where
-  fromTokenStreams :: [TokenStream] -> a
+  rpcResultSetParser :: Parser a
 
 
 instance RpcResultSet () where
-  fromTokenStreams xs = case parse noResult xs of
-                          [] -> error "fromTokenStreams(RpcResultSet ()): failed to parse"
-                          (x,_):_ -> x
+  rpcResultSetParser = noResult
 
 instance (Row a) => RpcResultSet [a] where
-  fromTokenStreams xs = case parse listOfRow xs of
-                          [] -> error "fromTokenStreams(RpcResultSet [Row a]): failed to parse"
-                          (x,_):_ -> x
+  rpcResultSetParser = listOfRow
 
 
 -- [TODO] use Template Haskell
 instance (RpcResult a, RpcResult b) => RpcResultSet (a, b) where
-  fromTokenStreams xs = case parse p xs of
-                          [] -> error "fromTokenStreams(RpcResultSet (RpcResult a, RpcResult b)): failed to parse"
-                          (x,_):_ -> x
+  rpcResultSetParser = p
     where
       p :: (RpcResult a, RpcResult b) => Parser (a, b)
       p = do
-        !r1 <- resultParser :: (RpcResult a) => Parser a
-        !r2 <- resultParser :: (RpcResult b) => Parser b
+        !r1 <- rpcResultParser :: (RpcResult a) => Parser a
+        !r2 <- rpcResultParser :: (RpcResult b) => Parser b
         return  (r1,r2)
 
 instance (RpcResult a, RpcResult b, RpcResult c) => RpcResultSet (a, b, c) where
-  fromTokenStreams xs = case parse p xs of
-                          [] -> error "fromTokenStreams(RpcResultSet (RpcResult a, RpcResult b, RpcResult c)): failed to parse"
-                          (x,_):_ -> x
+  rpcResultSetParser = p
     where
       p :: (RpcResult a, RpcResult b, RpcResult c) => Parser (a, b, c)
       p = do
-        !r1 <- resultParser :: (RpcResult a) => Parser a
-        !r2 <- resultParser :: (RpcResult b) => Parser b
-        !r3 <- resultParser :: (RpcResult c) => Parser c
+        !r1 <- rpcResultParser :: (RpcResult a) => Parser a
+        !r2 <- rpcResultParser :: (RpcResult b) => Parser b
+        !r3 <- rpcResultParser :: (RpcResult c) => Parser c
         return  (r1,r2,r3)
 
 instance (RpcResult a, RpcResult b, RpcResult c, RpcResult d) => RpcResultSet (a, b, c, d) where
-  fromTokenStreams xs = case parse p xs of
-                          [] -> error "fromTokenStreams(RpcResultSet (RpcResult a, RpcResult b, RpcResult c, RpcResult d)): failed to parse"
-                          (x,_):_ -> x
+  rpcResultSetParser = p
     where
       p :: (RpcResult a, RpcResult b, RpcResult c, RpcResult d) => Parser (a, b, c, d)
       p = do
-        !r1 <- resultParser :: (RpcResult a) => Parser a
-        !r2 <- resultParser :: (RpcResult b) => Parser b
-        !r3 <- resultParser :: (RpcResult c) => Parser c
-        !r4 <- resultParser :: (RpcResult d) => Parser d
+        !r1 <- rpcResultParser :: (RpcResult a) => Parser a
+        !r2 <- rpcResultParser :: (RpcResult b) => Parser b
+        !r3 <- rpcResultParser :: (RpcResult c) => Parser c
+        !r4 <- rpcResultParser :: (RpcResult d) => Parser d
         return  (r1,r2,r3,r4)
 
 instance (RpcResult a, RpcResult b, RpcResult c, RpcResult d, RpcResult e) => RpcResultSet (a, b, c, d, e) where
-  fromTokenStreams xs = case parse p xs of
-                          [] -> error "fromTokenStreams(RpcResultSet (RpcResult a, RpcResult b, RpcResult c, RpcResult d, RpcResult e)): failed to parse"
-                          (x,_):_ -> x
+  rpcResultSetParser = p
     where
       p :: (RpcResult a, RpcResult b, RpcResult c, RpcResult d, RpcResult e) => Parser (a, b, c, d, e)
       p = do
-        !r1 <- resultParser :: (RpcResult a) => Parser a
-        !r2 <- resultParser :: (RpcResult b) => Parser b
-        !r3 <- resultParser :: (RpcResult c) => Parser c
-        !r4 <- resultParser :: (RpcResult d) => Parser d
-        !r5 <- resultParser :: (RpcResult e) => Parser e
+        !r1 <- rpcResultParser :: (RpcResult a) => Parser a
+        !r2 <- rpcResultParser :: (RpcResult b) => Parser b
+        !r3 <- rpcResultParser :: (RpcResult c) => Parser c
+        !r4 <- rpcResultParser :: (RpcResult d) => Parser d
+        !r5 <- rpcResultParser :: (RpcResult e) => Parser e
         return  (r1,r2,r3,r4,r5)
 
 
 
 class RpcResult a where
-  resultParser :: Parser a
+  rpcResultParser :: Parser a
 
 instance RpcResult () where
-  resultParser = noResult
+  rpcResultParser = noResult
 
 instance Row a => RpcResult [a] where
-  resultParser = listOfRow
+  rpcResultParser = listOfRow
 
   
 
