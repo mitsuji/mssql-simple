@@ -16,7 +16,7 @@ module Database.MSSQLServer.Query.TokenStreamParser ( Parser(..)
 
 import Control.Applicative((<$>))
 import Control.Applicative(Applicative((<*>),pure),Alternative((<|>),empty))
-import Control.Monad(Monad(..))
+import Control.Monad(Monad(..),ap)
 import Data.Monoid (mconcat,(<>),All(..),Any(..))
 
 import Database.Tds.Message
@@ -34,15 +34,15 @@ instance Functor Parser where
   fmap f p = Parser $ \xs -> [(f x,xs') | (x,xs') <- parse p xs]
 
 instance Applicative Parser where
-  pure x = Parser $ \xs -> [(x,xs)]
-  (<*>) f p = Parser $ \xs -> [(f' x,xs'') | (x,xs') <- parse p xs, (f',xs'') <- parse f xs']
+  pure = return
+  (<*>) = ap
 
 instance Alternative Parser where
   empty = Parser $ \_ -> []
   (<|>) p q = Parser $ \xs -> parse p xs <> parse q xs
 
 instance Monad Parser where
-  return = pure
+  return x = Parser $ \xs -> [(x,xs)]
   p >>= f  = Parser $ \ts -> mconcat [parse (f t) ts' | (t,ts') <- parse p ts]
 
 
