@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 
 module Database.MSSQLServer.Query.TokenStreamParser ( Parser(..)
                                                     , parse
@@ -15,7 +16,10 @@ module Database.MSSQLServer.Query.TokenStreamParser ( Parser(..)
 
 import Control.Applicative((<$>))
 import Control.Applicative(Applicative((<*>),pure),Alternative((<|>),empty))
-import Control.Monad(Monad(..),ap)
+import Control.Monad(Monad(..),MonadPlus(..),ap)
+#if MIN_VERSION_base(4,9,0)
+import Control.Monad.Fail(MonadFail(..))
+#endif
 import Data.Monoid (mconcat,(<>),All(..),Any(..))
 
 import Database.Tds.Message
@@ -37,12 +41,21 @@ instance Applicative Parser where
   (<*>) = ap
 
 instance Alternative Parser where
-  empty = Parser $ \_ -> []
-  (<|>) p q = Parser $ \xs -> parse p xs <> parse q xs
+  empty = mzero
+  (<|>) = mplus
 
 instance Monad Parser where
   return x = Parser $ \xs -> [(x,xs)]
   p >>= f  = Parser $ \ts -> mconcat [parse (f t) ts' | (t,ts') <- parse p ts]
+
+instance MonadPlus Parser where
+  mzero = Parser $ \_ -> []
+  mplus p q = Parser $ \xs -> parse p xs <> parse q xs
+
+#if MIN_VERSION_base(4,9,0)
+instance MonadFail Parser where
+  fail _ = mzero
+#endif
 
 
 item :: Parser TokenStream
