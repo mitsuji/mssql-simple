@@ -16,10 +16,6 @@ class Row a where
   fromListOfRawBytes :: [MetaColumnData] -> [RawBytes] -> a
 
 -- [TODO] use Template Haskell
-instance Row () where
-  fromListOfRawBytes [] [] = ()
-  fromListOfRawBytes _ _ = error "fromListOfRawBytes: List length must be 0"
-
 instance (Data a) => Row (Only a) where
   fromListOfRawBytes [m1] [b1] = Only d1
     where

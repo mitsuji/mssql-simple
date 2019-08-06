@@ -14,7 +14,6 @@ module Database.MSSQLServer.Query.RpcQuerySet ( RpcQuerySet (..)
                                               ) where
 
 
-import Control.Applicative((<$>),(<*>))
 import qualified Data.Text as T
 import Data.Word (Word16(..))
 

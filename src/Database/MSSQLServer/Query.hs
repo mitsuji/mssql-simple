@@ -51,7 +51,6 @@ import qualified Data.ByteString.Lazy as LB
 
 import qualified Data.Text as T
 
-import Data.Binary (Binary(..),encode)
 import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
 
@@ -66,6 +65,7 @@ import Database.MSSQLServer.Query.Row
 import Database.MSSQLServer.Query.ResultSet
 import Database.MSSQLServer.Query.RpcResponseSet
 import Database.MSSQLServer.Query.RpcQuerySet
+import Database.MSSQLServer.Query.TokenStreamParser
 
 
 data QueryError = QueryError !Info
@@ -79,10 +79,11 @@ sql (Connection sock ps) query = do
   sendAll sock $ Put.runPut $ putClientMessage ps $ CMSqlBatch $ SqlBatch query
   TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage
 
-  case filter isTSError tss of
-    [] -> return $ fromTokenStreams tss
-    TSError info :_ -> throwIO $ QueryError info
-
+  case parse resultSetParser tss of
+    [] -> case filter isTSError tss of
+      [] -> error "sql: failed to parse token streams"
+      TSError info :_ -> throwIO $ QueryError info
+    (x,_):_ -> return x
 
 
 rpc :: (RpcQuerySet a, RpcResponseSet b) => Connection -> a -> IO b
@@ -90,27 +91,11 @@ rpc (Connection sock ps) queries = do
   sendAll sock $ Put.runPut $ putClientMessage ps $ CMRpcRequest $ toRpcRequest queries
   TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage
 
-  case filter isTSError tss of
-    [] -> return $ fromListOfTokenStreams $ splitBy isTSDoneProc tss
-    TSError info :_ -> throwIO $ QueryError info
-  
-  where
-    isTSDoneProc :: TokenStream -> Bool
-    isTSDoneProc (TSDoneProc{}) = True
-    isTSDoneProc _ = False
-
-
-    spanBy :: (a -> Bool) -> [a] -> ([a],[a])
-    spanBy q xs = case span (not . q) xs of
-      t@(ys,z:zs) | (q z) -> (ys <> [z], zs)
-                  | otherwise -> t
-      t -> t
-
-    splitBy :: (a -> Bool) -> [a] ->[[a]]
-    splitBy q xs = case spanBy q xs of
-      (ys,[]) -> [ys]
-      (ys,zs) -> ys:splitBy q zs
-
+  case parse rpcResponseSetParser tss of
+    [] -> case filter isTSError tss of
+      [] -> error "rpc: failed to parse token streams"
+      TSError info :_ -> throwIO $ QueryError info
+    (x,_):_ -> return x
 
 
 nvarcharVal :: RpcParamName -> T.Text -> RpcParam T.Text
