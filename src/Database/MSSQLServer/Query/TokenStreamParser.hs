@@ -50,35 +50,6 @@ item = Parser $ \xs -> case xs of
                          [] -> []
                          (x:xs') -> [(x,xs')]
 
-{-- MEMO Maybe version
-data Parser a = Parser ([TokenStream] -> Maybe (a,[TokenStream]))
-
-parse :: Parser a -> [TokenStream] -> Maybe (a,[TokenStream])
-parse (Parser p) = p
-
-
-instance Functor Parser where
-  fmap f p = Parser $ \xs -> (\(x,xs')->(f x, xs)) <$> parse p xs
-
-instance Applicative Parser where
-  pure = return
-  (<*>) = ap
-
-instance Alternative Parser where
-  empty = Parser $ \_ -> Nothing
-  (<|>) p q = Parser $ \xs -> parse p xs <|> parse q xs
-
-instance Monad Parser where
-  return x = Parser $ \xs -> Just (x,xs)
-  p >>= f  = Parser $ \ts -> parse p ts >>= \(t,ts') -> parse (f t) ts'
-
-
-item :: Parser TokenStream
-item = Parser $ \xs -> case xs of
-                         [] -> Nothing
-                         (x:xs') -> Just (x,xs')
-
---}
 satisfy :: (TokenStream -> Bool) -> Parser TokenStream
 satisfy f = do x <- item
                if f x

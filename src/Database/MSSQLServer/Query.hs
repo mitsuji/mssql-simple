@@ -79,12 +79,11 @@ sql (Connection sock ps) query = do
   sendAll sock $ Put.runPut $ putClientMessage ps $ CMSqlBatch $ SqlBatch query
   TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage
 
-  case filter isTSError tss of
-    [] -> case parse resultSetParser tss of
-            [] -> error "resultSetParser: failed to parse token streams"
-            (x,_):_ -> return x
-    TSError info :_ -> throwIO $ QueryError info
-
+  case parse resultSetParser tss of
+    [] -> case filter isTSError tss of
+      [] -> error "sql: failed to parse token streams"
+      TSError info :_ -> throwIO $ QueryError info
+    (x,_):_ -> return x
 
 
 rpc :: (RpcQuerySet a, RpcResponseSet b) => Connection -> a -> IO b
@@ -92,12 +91,11 @@ rpc (Connection sock ps) queries = do
   sendAll sock $ Put.runPut $ putClientMessage ps $ CMRpcRequest $ toRpcRequest queries
   TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage
 
-  case filter isTSError tss of
-    [] -> case parse rpcResponseSetParser tss of
-            [] -> error "rpcResponseSetParser: failed to parse token streams"
-            (x,_):_ -> return x
-    TSError info :_ -> throwIO $ QueryError info
-  
+  case parse rpcResponseSetParser tss of
+    [] -> case filter isTSError tss of
+      [] -> error "rpc: failed to parse token streams"
+      TSError info :_ -> throwIO $ QueryError info
+    (x,_):_ -> return x
 
 
 nvarcharVal :: RpcParamName -> T.Text -> RpcParam T.Text
