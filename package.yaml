@@ -29,6 +29,7 @@ dependencies:
 - network
 - hostname
 - tls
+- template-haskell
 
 
 library:
