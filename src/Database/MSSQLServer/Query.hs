@@ -39,6 +39,7 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                   , QueryError (..)
                                   ) where
 
+import Control.Applicative((<$>))
 import Data.Monoid ((<>))
 import Data.Typeable(Typeable)
 
