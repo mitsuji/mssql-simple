@@ -92,7 +92,7 @@ resultSetTuple n =
 #else
                         [ClassP (mkName "Result") [VarT (mkName $ "a" <> show i)]]
 #endif
-                        (AppT (ConT (mkName "Parser")) (VarT (mkName $ "a" <> show i)))
+                        (AppT (ConT (mkName "Parser'")) (VarT (mkName $ "a" <> show i)))
                       )
                      )
                  )
@@ -212,7 +212,7 @@ rpcResultSetTuple n =
 #else
                         [ClassP (mkName "RpcResult") [VarT (mkName $ "a" <> show i)]]
 #endif
-                        (AppT (ConT (mkName "Parser")) (VarT (mkName $ "a" <> show i)))
+                        (AppT (ConT (mkName "Parser'")) (VarT (mkName $ "a" <> show i)))
                       )
                      )
                  )

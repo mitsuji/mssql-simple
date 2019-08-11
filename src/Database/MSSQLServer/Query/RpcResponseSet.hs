@@ -2,6 +2,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE CPP #-}
 
 module Database.MSSQLServer.Query.RpcResponseSet ( RpcResponseSet (..)
                                                  , RpcResponse (..)
@@ -20,15 +21,59 @@ import Database.MSSQLServer.Query.Template
 import Control.Monad(forM)
 import Language.Haskell.TH (runIO,pprint)
 
+#if MIN_VERSION_mtl(2,2,1)
+import Control.Monad.Except
+#else
+import Control.Monad.Error
+runExceptT = runErrorT
+#endif
+
+
+
+listOfRow :: Row a => Parser' ([a])
+listOfRow = do
+  _ <- trySatisfyMany $ not . isTSColMetaData
+  tsCmd <- trySatisfy isTSColMetaData
+  _ <- trySatisfyMany $ not . isTSRow
+  tsRows <- trySatisfyMany isTSRow
+  _ <- trySatisfyMany  $ not . isTSDoneInProc -- necesarry ?
+  _ <- trySatisfy isTSDoneInProc
+  return $
+    let
+      (TSColMetaData (maybeCmd)) = tsCmd
+      mcds = case (\(ColMetaData x) -> x) <$> maybeCmd of
+               Nothing -> error "listOfRow: ColMetaData is necessary"
+               Just mcds' -> mcds'
+      rows = (\(TSRow row) -> getRawBytes <$> row) <$> tsRows
+    in fromListOfRawBytes mcds <$> rows
+  where
+
+    isTSColMetaData :: TokenStream -> Bool
+    isTSColMetaData (TSColMetaData{}) = True
+    isTSColMetaData _ = False
+
+    isTSRow :: TokenStream -> Bool
+    isTSRow (TSRow{}) = True
+    isTSRow _ = False
+
+    isTSDoneInProc :: TokenStream -> Bool
+    isTSDoneInProc (TSDoneInProc{}) = True
+    isTSDoneInProc _ = False
+
+    getRawBytes :: RowColumnData -> RawBytes
+    getRawBytes (RCDOrdinal dt) = dt
+    getRawBytes (RCDLarge _ _ dt) = dt
+
 
 
 
 class RpcResultSet a where
-  rpcResultSetParser :: Parser a
+  rpcResultSetParser :: Parser' a
 
 
 instance RpcResultSet () where
-  rpcResultSetParser = noResult
+  rpcResultSetParser = return ()
+
 
 instance (Row a) => RpcResultSet [a] where
   rpcResultSetParser = listOfRow
@@ -41,17 +86,14 @@ forM [2..30] $ \n -> do
   return dec
 --instance (RpcResult a1, RpcResult a2) => RpcResultSet (a1, a2) where
 --  rpcResultSetParser = do
---    !r1 <- rpcResultParser :: (RpcResult a1) => Parser a1
---    !r2 <- rpcResultParser :: (RpcResult a2) => Parser a2
+--    !r1 <- rpcResultParser :: (RpcResult a1) => Parser' a1
+--    !r2 <- rpcResultParser :: (RpcResult a2) => Parser' a2
 --    return  (r1,r2)
 --
 
 
 class RpcResult a where
-  rpcResultParser :: Parser a
-
-instance RpcResult () where
-  rpcResultParser = noResult
+  rpcResultParser :: Parser' a
 
 instance Row a => RpcResult [a] where
   rpcResultParser = listOfRow
@@ -96,25 +138,30 @@ forM [2..30] $ \n -> do
 
 
 -- (RpcOutputSet a, RpcResultSet b) => 
-data RpcResponse a b = RpcResponse Int a b
+data RpcResponse a b = RpcResponse !Int !a !b
+                     | RpcResponseError !Info
                    deriving (Show)
 
 
 rpcResponseParser :: (RpcOutputSet a, RpcResultSet b) => Parser (RpcResponse a b)
-rpcResponseParser = p
+rpcResponseParser = do
+  let rrParser = runExceptT $ do
+        rrs <- rpcResultSetParser
+        _ <- trySatisfyMany $ not . isTSReturnStatus
+        TSReturnStatus ret <- trySatisfy isTSReturnStatus
+        _ <- trySatisfyMany $ not . isTSReturnValue
+        rvs <- trySatisfyMany isTSReturnValue
+        _ <- trySatisfyMany $ not . isTSDoneProc
+        _ <- trySatisfy isTSDoneProc
+
+        let rvs' = (\(TSReturnValue rv) -> rv) <$>  rvs
+        return $ RpcResponse (fromIntegral ret) (fromReturnValues rvs') rrs
+  err <- rrParser
+  case err of
+    Left ei -> return $ RpcResponseError ei
+    Right rr -> return rr
+
   where
-    p = do
-      rss <- rpcResultSetParser
-      _ <- many $ satisfy $ not . isTSReturnStatus
-      TSReturnStatus ret <- satisfy isTSReturnStatus
-      _ <- many $ satisfy $ not . isTSReturnValue
-      rvs <- many $ satisfy isTSReturnValue
-      _ <- many $ satisfy $ not . isTSDoneProc
-      _ <- satisfy isTSDoneProc
-
-      let rvs' = (\(TSReturnValue rv) -> rv) <$>  rvs
-      return $ RpcResponse (fromIntegral ret) (fromReturnValues rvs') rss
-
     isTSReturnStatus :: TokenStream -> Bool
     isTSReturnStatus (TSReturnStatus{}) = True
     isTSReturnStatus _ = False
@@ -126,6 +173,8 @@ rpcResponseParser = p
     isTSDoneProc :: TokenStream -> Bool
     isTSDoneProc (TSDoneProc{}) = True
     isTSDoneProc _ = False
+
+
 
 
 

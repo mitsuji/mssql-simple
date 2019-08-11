@@ -3,6 +3,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Database.MSSQLServer.Query.Row ( Row (..)
+                                      , RowCount (..)
+                                      , ReturnStatus (..)
                                       ) where
 
 import Database.Tds.Message
@@ -11,6 +13,10 @@ import Database.MSSQLServer.Query.Template
 
 import Control.Monad(forM)
 import Language.Haskell.TH (runIO,pprint)
+
+
+newtype RowCount = RowCount Int
+newtype ReturnStatus = ReturnStatus Int
 
 mcdTypeInfo :: MetaColumnData -> TypeInfo
 mcdTypeInfo (MetaColumnData _ _ ti _ _) = ti

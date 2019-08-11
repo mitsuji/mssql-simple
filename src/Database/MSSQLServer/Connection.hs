@@ -19,13 +19,11 @@ import Network.Socket.ByteString.Lazy (sendAll)
 import Data.Monoid ((<>),mempty)
 
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as LB
 
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Encoding as T
 
-import Data.Binary (Binary(..))
 import qualified Data.Binary.Put as Put
 import qualified Data.Binary.Get as Get
 

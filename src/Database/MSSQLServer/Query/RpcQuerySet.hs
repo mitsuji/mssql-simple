@@ -12,10 +12,15 @@ module Database.MSSQLServer.Query.RpcQuerySet ( RpcQuerySet (..)
                                               , RpcParam (..)
                                               , RpcParamName
                                               , rpcReqBatchParam
+                                              , nvarcharVal
+                                              , ntextVal
+                                              , varcharVal
+                                              , textVal
                                               ) where
 
 
 import qualified Data.Text as T
+import qualified Data.ByteString as B
 import Data.Word (Word16(..))
 
 import Database.Tds.Message
@@ -26,7 +31,7 @@ import Control.Monad(forM)
 import Language.Haskell.TH (runIO,pprint)
 
 
-data RpcQuery a b = RpcQuery a b
+data RpcQuery a b = RpcQuery !a !b
                   deriving (Show)
 
 class RpcQueryId a where
@@ -61,10 +66,10 @@ instance RpcQueryId StoredProcedure where
 
 type RpcParamName  = T.Text
 
-data RpcParam a = RpcParamVal RpcParamName TypeInfo a
-                | RpcParamRef RpcParamName TypeInfo a
-                | RpcParamDefVal RpcParamName TypeInfo a
-                | RpcParamDefRef RpcParamName TypeInfo a
+data RpcParam a = RpcParamVal !RpcParamName !TypeInfo !a
+                | RpcParamRef !RpcParamName !TypeInfo !a
+                | RpcParamDefVal !RpcParamName !TypeInfo !a
+                | RpcParamDefRef !RpcParamName !TypeInfo !a
                 deriving (Show)
 
 
@@ -124,3 +129,20 @@ forM [2..30] $ \n -> do
 --      !r1 = toRpcReqBatch a1 b1
 --      !r2 = toRpcReqBatch a2 b2
 --
+
+
+
+nvarcharVal :: RpcParamName -> T.Text -> RpcParam T.Text
+nvarcharVal name ts = RpcParamVal name (TINVarChar (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) ts
+
+ntextVal :: RpcParamName -> T.Text -> RpcParam T.Text
+ntextVal name ts = RpcParamVal name (TINText (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) ts
+
+varcharVal :: RpcParamName -> B.ByteString -> RpcParam B.ByteString
+varcharVal name bs = RpcParamVal name (TIBigVarChar (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) bs
+
+textVal :: RpcParamName -> B.ByteString -> RpcParam B.ByteString
+textVal name bs = RpcParamVal name (TIText (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) bs
+
+
+

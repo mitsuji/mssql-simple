@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE CPP #-}
 
 module Database.MSSQLServer.Query ( -- * SQL Text Query
                                     sql
@@ -8,6 +9,8 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                   , Result (..)
                                   , Row (..)
                                   , Only (..)
+                                  , RowCount (..)
+                                  , ReturnStatus (..)
                                   
                                   -- * RPC Query
                                   , rpc
@@ -39,28 +42,22 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                   , QueryError (..)
                                   ) where
 
-import Control.Applicative((<$>))
-import Data.Monoid ((<>))
 import Data.Typeable(Typeable)
 
 import Network.Socket (Socket)
 import Network.Socket.ByteString (recv)
 import Network.Socket.ByteString.Lazy (sendAll)
 
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as LB
-
 import qualified Data.Text as T
 
 import qualified Data.Binary.Get as Get
 import qualified Data.Binary.Put as Put
 
-import Control.Monad (when)
 import Control.Exception (Exception(..),throwIO,onException)
 
 import Database.Tds.Message
 
-import Database.MSSQLServer.Connection
+import Database.MSSQLServer.Connection (Connection(..))
 import Database.MSSQLServer.Query.Only
 import Database.MSSQLServer.Query.Row
 import Database.MSSQLServer.Query.ResultSet
@@ -68,6 +65,12 @@ import Database.MSSQLServer.Query.RpcResponseSet
 import Database.MSSQLServer.Query.RpcQuerySet
 import Database.MSSQLServer.Query.TokenStreamParser
 
+#if MIN_VERSION_mtl(2,2,1)
+import Control.Monad.Except
+#else
+import Control.Monad.Error
+runExceptT = runErrorT
+#endif
 
 data QueryError = QueryError !Info
                 deriving (Show,Typeable)
@@ -80,11 +83,14 @@ sql (Connection sock ps) query = do
   sendAll sock $ Put.runPut $ putClientMessage ps $ CMSqlBatch $ SqlBatch query
   TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage
 
-  case filter isTSError tss of
-    [] -> case parse resultSetParser tss of
-      [] -> error "sql: failed to parse token streams"
-      (x,_):_ -> return x
-    TSError info :_ -> throwIO $ QueryError info
+  case parse responseParser tss of
+    [] -> fail "sql: failed to parse token streams"
+    (Left info,_):_ -> throwIO $ QueryError info
+    (Right x,_):_ -> return x
+
+  where
+    responseParser :: (ResultSet a) => Parser (Either Info a)
+    responseParser = runExceptT $ resultSetParser
 
 
 
@@ -93,25 +99,9 @@ rpc (Connection sock ps) queries = do
   sendAll sock $ Put.runPut $ putClientMessage ps $ CMRpcRequest $ toRpcRequest queries
   TokenStreams tss <- readMessage sock $ Get.runGetIncremental getServerMessage
 
-  case filter isTSError tss of
-    [] -> case parse rpcResponseSetParser tss of
-      [] -> error "rpc: failed to parse token streams"
-      (x,_):_ -> return x
-    TSError info :_ -> throwIO $ QueryError info
-
-
-
-nvarcharVal :: RpcParamName -> T.Text -> RpcParam T.Text
-nvarcharVal name ts = RpcParamVal name (TINVarChar (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) ts
-
-ntextVal :: RpcParamName -> T.Text -> RpcParam T.Text
-ntextVal name ts = RpcParamVal name (TINText (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) ts
-
-varcharVal :: RpcParamName -> B.ByteString -> RpcParam B.ByteString
-varcharVal name bs = RpcParamVal name (TIBigVarChar (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) bs
-
-textVal :: RpcParamName -> B.ByteString -> RpcParam B.ByteString
-textVal name bs = RpcParamVal name (TIText (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) bs
+  case parse rpcResponseSetParser tss of
+    [] -> fail "rpc: failed to parse token streams"
+    (x,_):_ -> return x
 
 
 
@@ -127,10 +117,6 @@ withTransaction conn act = do
       rollback = sql conn $ T.pack "ROLLBACK TRANSACTION":: IO ()
 
 
-
-isTSError :: TokenStream -> Bool
-isTSError (TSError{}) = True
-isTSError _ = False
 
 readMessage :: Socket -> Get.Decoder a -> IO a
 readMessage sock decoder = do

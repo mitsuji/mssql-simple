@@ -30,6 +30,7 @@ dependencies:
 - hostname
 - tls
 - template-haskell
+- mtl
 
 
 library:
