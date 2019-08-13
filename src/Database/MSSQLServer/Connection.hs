@@ -104,10 +104,10 @@ connect ci@(ConnectInfo host port _ _ _ encrypt ps _ _ _ _ _ _ _ _ _) = do
   
   Prelogin plResOpts <- performPrelogin sock ps encrypt
 
-  [PLOEncryption modeEnc]  <- case filter isPLOEncryption plResOpts of
+  PLOEncryption modeEnc:_  <- case filter isPLOEncryption plResOpts of
                                 [] -> throwIO $ ProtocolError "connect: PLOEncryption is necessary"
                                 xs -> return xs
-  [PLOMars modeMars] <- case filter isPLOMars plResOpts of
+  PLOMars modeMars:_ <- case filter isPLOMars plResOpts of
                           [] -> throwIO $ ProtocolError "connect: PLOMars is necessary"
                           xs -> return xs
   when (modeEnc/=encrypt)  $ throwIO $ ProtocolError "connect: Server reported unsupported encryption mode"
@@ -207,15 +207,15 @@ newLogin7 (ConnectInfo _ _ database user pass _ _ optf1 optf2 optf3 typef tz col
 
 validLoginAck :: Login7 -> TokenStreams -> IO ()
 validLoginAck login7 (TokenStreams loginResTokenStreams) = do
-  
+
   let loginAcks   = filter isTSLoginAck loginResTokenStreams
   when (null loginAcks) $ do
-    [TSError info] <- case filter isTSError loginResTokenStreams of
+    TSError info:_ <- case filter isTSError loginResTokenStreams of
                         [] -> throwIO $ ProtocolError "validLoginAck: TSError is necessary"
                         xs -> return xs
     throwIO $ AuthError info
 
-  let [TSLoginAck _ tdsVersion' _ _] = loginAcks
+  let (TSLoginAck _ tdsVersion' _ _):_ = loginAcks
   when (tdsVersion /= tdsVersion') $ throwIO $ ProtocolError "validLoginAck: Server reported unsupported tds version"
 
   return ()
