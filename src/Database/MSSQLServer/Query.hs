@@ -32,11 +32,84 @@ module Database.MSSQLServer.Query ( -- * SQL Text Query
                                   , RpcParamSet (..)
                                   , RpcParam (..)
                                   , RpcParamName
-                                  , nvarcharVal
-                                  , ntextVal
+
+                                  , bitVal
+                                  , tinyintVal
+                                  , smallintVal
+                                  , intVal
+                                  , bigintVal
+                                  , smallmoneyVal
+                                  , moneyVal
+                                  , smalldatetimeVal
+                                  , datetimeVal
+                                  , float24Val
+                                  , realVal
+                                  , float53Val
+                                  , doubleVal
+                                  , uniqueidentifierVal
+                                  , decimalVal
+                                  , numericVal
+                                  , charVal
                                   , varcharVal
                                   , textVal
-                                  
+                                  , ncharVal
+                                  , nvarcharVal
+                                  , ntextVal
+                                  , binaryVal
+                                  , varbinaryVal
+                                  , imageVal
+
+                                  , bitRef
+                                  , tinyintRef
+                                  , smallintRef
+                                  , intRef
+                                  , bigintRef
+                                  , smallmoneyRef
+                                  , moneyRef
+                                  , smalldatetimeRef
+                                  , datetimeRef
+                                  , float24Ref
+                                  , realRef
+                                  , float53Ref
+                                  , doubleRef
+                                  , uniqueidentifierRef
+                                  , decimalRef
+                                  , numericRef
+                                  , charRef
+                                  , varcharRef
+                                  , textRef
+                                  , ncharRef
+                                  , nvarcharRef
+                                  , ntextRef
+                                  , binaryRef
+                                  , varbinaryRef
+                                  , imageRef
+
+                                  , bitDefRef
+                                  , tinyintDefRef
+                                  , smallintDefRef
+                                  , intDefRef
+                                  , bigintDefRef
+                                  , smallmoneyDefRef
+                                  , moneyDefRef
+                                  , smalldatetimeDefRef
+                                  , datetimeDefRef
+                                  , float24DefRef
+                                  , realDefRef
+                                  , float53DefRef
+                                  , doubleDefRef
+                                  , uniqueidentifierDefRef
+                                  , decimalDefRef
+                                  , numericDefRef
+                                  , charDefRef
+                                  , varcharDefRef
+                                  , textDefRef
+                                  , ncharDefRef
+                                  , nvarcharDefRef
+                                  , ntextDefRef
+                                  , binaryDefRef
+                                  , varbinaryDefRef
+                                  , imageDefRef
                                   -- * Exceptions
                                   , withTransaction
                                   , QueryError (..)
