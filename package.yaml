@@ -30,6 +30,8 @@ dependencies:
 - hostname
 - tls
 - template-haskell
+- mtl
+- uuid-types
 
 
 library:
