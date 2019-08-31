@@ -1,15 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Database.MSSQLServer.Connection ( ConnectInfo(..)
-                                       , defaultConnectInfo
-                                       , Connection(..)
-                                       , connect
-                                       , connectWithoutEncryption
-                                       , close
-                                       , ProtocolError(..)
-                                       , AuthError(..)
-                                       ) where
+-- |
+-- SQL Server client library implemented in Haskell
+--
+-- [Usage Example](https://github.com/mitsuji/mssql-simple-example/blob/master/app/Main.hs)
+
+
+module Database.MSSQLServer.Connection
+  (
+    -- * Connect with the SQL Server
+    -- $use
+
+      ConnectInfo(..)
+    , defaultConnectInfo
+    , Connection(..)
+    , connect
+    , connectWithoutEncryption
+    , close
+    , ProtocolError(..)
+    , AuthError(..)
+    ) where
 
 import qualified Network.Socket as Socket
 import Network.Socket (AddrInfo(..),SocketType(..),Socket(..))
@@ -282,3 +293,27 @@ readMessage sock decoder = do
 
 
 
+-- $use
+-- 'connect' and 'close' function could be used as follows.
+--
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- > module Main where
+-- >
+-- > import Network.Socket (withSocketsDo)
+-- > import Control.Exception (bracket)
+-- >
+-- > import Database.MSSQLServer.Connection
+-- > import Database.MSSQLServer.Query
+-- >
+-- > main :: IO ()
+-- > main = do
+-- >   let info = defaultConnectInfo { connectHost = "192.168.0.1"
+-- >                                 , connectPort = "1433"
+-- >                                 , connectDatabase = "some_database"
+-- >                                 , connectUser = "some_user"
+-- >                                 , connectPassword = "some_password"
+-- >                                 }
+-- >   withSocketsDo $
+-- >     bracket (connect info) close $ \conn -> do
+-- >     rs <- sql conn "SELECT 2 + 2" :: IO [Only Int]
+-- >     print rs
