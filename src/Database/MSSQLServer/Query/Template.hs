@@ -84,7 +84,8 @@ resultSetTuple n =
                  (flip map [1..n] $ \i ->
                      BindS
                      (BangP (VarP (mkName $ "r" <> show i )))
-                     (SigE (VarE (mkName "resultParser"))
+                     (SigE
+                      (AppE (VarE (mkName "resultParser")) (if i==n then (ConE 'True) else (ConE 'False)) )
                       (ForallT
                         [PlainTV (mkName $ "a" <> show i)]
 #if MIN_VERSION_template_haskell(2,10,0)
@@ -131,7 +132,8 @@ rpcResponseSetTuple n =
                (
                  (flip map [1..n] $ \i ->
                      BindS
-                     (BangP (VarP (mkName $ "r" <> show i ))) (VarE (mkName "rpcResponseParser"))
+                     (BangP (VarP (mkName $ "r" <> show i )))
+                     (AppE (VarE (mkName "rpcResponseParser")) (if i==n then (ConE 'True) else (ConE 'False)))
                  )
                  <>
                  [(NoBindS (AppE (VarE 'return) (TupE (map (\i->VarE (mkName $ "r" <> show i)) [1..n]) )) )]
