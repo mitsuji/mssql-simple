@@ -1,5 +1,5 @@
 name:                mssql-simple
-version:             0.5.0.0
+version:             0.5.0.1
 github:              "mitsuji/mssql-simple"
 license:             BSD3
 author:              "Takamasa Mitsuji"
