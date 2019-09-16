@@ -6,12 +6,17 @@ module Database.MSSQLServer.Query.TokenStreamParser ( Parser(..)
                                                     , satisfy
                                                     , satisfyNotError
                                                     , Parser'(..)
-                                                    , trySatisfy
-                                                    , trySatisfyMany
+                                                    , isTSError
+                                                    , isTSDoneOrDoneProc
+                                                    , isTSDone
+                                                    , isTSDoneProc
+                                                    , isFinalTSDoneOrDoneProc
+                                                    , isFinalTSDone
+                                                    , isFinalTSDoneProc
                                                     ) where
 
 
-import Control.Applicative(Applicative((<*>),pure),Alternative((<|>),empty),many,(<$>))
+import Control.Applicative(Applicative((<*>),pure),Alternative((<|>),empty),(<$>))
 import Control.Monad(Monad(..),MonadPlus(..),ap)
 import Data.Monoid ((<>),mconcat)
 #if MIN_VERSION_base(4,9,0)
@@ -20,6 +25,8 @@ import Control.Monad.Fail(MonadFail(..))
 
 import Database.Tds.Message
 import Database.MSSQLServer.Query.Row
+
+import Data.Bits ((.&.))
 
 
 #if MIN_VERSION_mtl(2,2,1)
@@ -85,36 +92,43 @@ instance Error Info where
 #endif
 
 
-trySatisfy :: (TokenStream -> Bool) -> Parser' TokenStream
-trySatisfy f = do
-  ts <- lift $ (satisfyNotError f) <|> errorDone
-  case ts of
-    TSError ei -> throwError ei
-    _ -> return ts
-
-trySatisfyMany :: (TokenStream -> Bool) -> Parser' [TokenStream]
-trySatisfyMany f = do
-  tss <- lift $ (many $ satisfyNotError f) <|> ((\x->[x]) <$> errorDone)
-  case tss of
-    (TSError ei):_ -> throwError ei
-    _ -> return tss
-
-
-errorDone :: Parser TokenStream
-errorDone = do
-  _  <- many $ satisfy $ not . isTSError
-  ts <- satisfy isTSError
-  _  <- many $ satisfy $ not . isTSDoneOrDoneProc
-  _  <- satisfy isTSDoneOrDoneProc
-  return ts
-  where
-    isTSDoneOrDoneProc :: TokenStream -> Bool
-    isTSDoneOrDoneProc (TSDone{}) = True
-    isTSDoneOrDoneProc (TSDoneProc{}) = True
-    isTSDoneOrDoneProc _ = False
-
 isTSError :: TokenStream -> Bool
 isTSError (TSError{}) = True
 isTSError _ = False
+
+isTSDoneOrDoneProc :: TokenStream -> Bool
+isTSDoneOrDoneProc (TSDone{}) = True
+isTSDoneOrDoneProc (TSDoneProc{}) = True
+isTSDoneOrDoneProc _ = False
+
+isTSDone :: TokenStream -> Bool
+isTSDone (TSDone{}) = True
+isTSDone _ = False
+
+isTSDoneProc :: TokenStream -> Bool
+isTSDoneProc (TSDoneProc{}) = True
+isTSDoneProc _ = False
+
+
+isFinalTSDoneOrDoneProc :: TokenStream -> Bool
+isFinalTSDoneOrDoneProc = (||) <$> isFinalTSDone <*> isFinalTSDoneProc
+
+isFinalTSDone :: TokenStream -> Bool
+isFinalTSDone = f
+  where
+    f :: TokenStream -> Bool
+    f (TSDone x) = isFinalDone x
+    f _ = False
+
+isFinalTSDoneProc :: TokenStream -> Bool
+isFinalTSDoneProc = f
+  where
+    f :: TokenStream -> Bool
+    f (TSDoneProc x) = isFinalDone x
+    f _ = False
+
+isFinalDone :: Done -> Bool
+isFinalDone (Done st _ _) = not $ st .&. 0x01 == 0x01 -- [MEMO] 0x01 more bit
+
 
 

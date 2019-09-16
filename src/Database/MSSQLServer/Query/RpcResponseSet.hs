@@ -11,7 +11,8 @@ module Database.MSSQLServer.Query.RpcResponseSet ( RpcResponseSet (..)
                                                  , RpcOutputSet (..)
                                                  ) where
 
-import Control.Applicative((<$>))
+
+import Control.Applicative(Alternative((<|>)),many,(<$>))
 import Database.Tds.Message
 import Database.MSSQLServer.Query.Row
 import Database.MSSQLServer.Query.Only
@@ -29,14 +30,37 @@ runExceptT = runErrorT
 #endif
 
 
+errorDone :: Parser TokenStream
+errorDone = do
+  _  <- many $ satisfy $ not . isTSError
+  ts <- satisfy isTSError
+  _  <- many $ satisfy $ not . isFinalTSDoneProc
+  _  <- satisfy isFinalTSDoneProc
+  return ts
+
+trySatisfy :: (TokenStream -> Bool) -> Parser' TokenStream
+trySatisfy f = do
+  ts <- lift $ (satisfyNotError f) <|> errorDone
+  case ts of
+    TSError ei -> throwError ei
+    _ -> return ts
+
+trySatisfyMany :: (TokenStream -> Bool) -> Parser' [TokenStream]
+trySatisfyMany f = do
+  tss <- lift $ (many $ satisfyNotError f) <|> ((\x->[x]) <$> errorDone)
+  case tss of
+    (TSError ei):_ -> throwError ei
+    _ -> return tss
+
+
 
 listOfRow :: Row a => Parser' ([a])
 listOfRow = do
   _ <- trySatisfyMany $ not . isTSColMetaData
   tsCmd <- trySatisfy isTSColMetaData
-  _ <- trySatisfyMany $ not . isTSRow
+  _ <- trySatisfyMany $ not . isTSRow -- [MEMO] skip Order
   tsRows <- trySatisfyMany isTSRow
-  _ <- trySatisfyMany  $ not . isTSDoneInProc -- necesarry ?
+  _ <- trySatisfyMany  $ not . isTSDoneInProc -- [MEMO] necesarry ?
   _ <- trySatisfy isTSDoneInProc
   return $
     let
@@ -143,17 +167,18 @@ data RpcResponse a b = RpcResponse !Int !a !b
                    deriving (Show)
 
 
-rpcResponseParser :: (RpcOutputSet a, RpcResultSet b) => Parser (RpcResponse a b)
-rpcResponseParser = do
+rpcResponseParser :: (RpcOutputSet a, RpcResultSet b) => Bool -> Parser (RpcResponse a b)
+rpcResponseParser final = do
   let rrParser = runExceptT $ do
         rrs <- rpcResultSetParser
-        _ <- trySatisfyMany $ not . isTSReturnStatus
+        _ <- trySatisfyMany $ not . isTSReturnStatus -- [MEMO] necesarry ?
         TSReturnStatus ret <- trySatisfy isTSReturnStatus
-        _ <- trySatisfyMany $ not . isTSReturnValue
+        _ <- trySatisfyMany $ not . isTSReturnValue -- [MEMO] necesarry ?
         rvs <- trySatisfyMany isTSReturnValue
-        _ <- trySatisfyMany $ not . isTSDoneProc
-        _ <- trySatisfy isTSDoneProc
-
+        _ <- trySatisfyMany $ not . isTSDoneProc -- [MEMO] necesarry ?
+        _ <- if final
+             then trySatisfy isFinalTSDoneProc
+             else trySatisfy isTSDoneProc
         let rvs' = (\(TSReturnValue rv) -> rv) <$>  rvs
         return $ RpcResponse (fromIntegral ret) (fromReturnValues rvs') rrs
   err <- rrParser
@@ -170,10 +195,6 @@ rpcResponseParser = do
     isTSReturnValue (TSReturnValue{}) = True
     isTSReturnValue _ = False
 
-    isTSDoneProc :: TokenStream -> Bool
-    isTSDoneProc (TSDoneProc{}) = True
-    isTSDoneProc _ = False
-
 
 
 
@@ -182,7 +203,7 @@ class RpcResponseSet a where
   rpcResponseSetParser :: Parser a
 
 instance (RpcOutputSet a1, RpcResultSet b1) => RpcResponseSet (RpcResponse a1 b1) where
-  rpcResponseSetParser = rpcResponseParser
+  rpcResponseSetParser = rpcResponseParser True
 
 -- [MEMO] using Template Haskell
 forM [2..30] $ \n -> do
@@ -191,8 +212,8 @@ forM [2..30] $ \n -> do
   return dec
 --instance (RpcOutputSet a1, RpcResultSet b1, RpcOutputSet a2, RpcResultSet b2) => RpcResponseSet (RpcResponse a1 b1, RpcResponse a2 b2) where
 --  rpcResponseSetParser = do
---    !r1 <- rpcResponseParser
---    !r2 <- rpcResponseParser
+--    !r1 <- rpcResponseParser False
+--    !r2 <- rpcResponseParser True
 --    return (r1,r2)
 --
 

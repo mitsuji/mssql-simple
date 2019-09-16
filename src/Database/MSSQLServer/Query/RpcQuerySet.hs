@@ -112,6 +112,8 @@ import Data.Fixed (Fixed(..),HasResolution(..))
 data RpcQuery a b = RpcQuery !a !b
                   deriving (Show)
 
+-- | There several ways provided for specify stored procedures.
+-- See ProcID section of [\[MS-TDS\] 2.2.6.6 RPC Request](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-tds/619c43b6-9495-4a58-9e49-a4950db245b3).
 class RpcQueryId a where
   toRpcReqBatch :: (RpcParamSet b) => a -> b -> RpcReqBatch
 

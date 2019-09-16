@@ -9,7 +9,7 @@ module Database.MSSQLServer.Query.ResultSet ( ResultSet (..)
                                             ) where
 
 
-import Control.Applicative ((<$>))
+import Control.Applicative(Alternative((<|>)),many,(<$>))
 import Database.Tds.Message
 import Database.MSSQLServer.Query.Row
 import Database.MSSQLServer.Query.Only
@@ -26,49 +26,113 @@ import Control.Monad.Error
 #endif
 
 
+errorDone :: Parser TokenStream
+errorDone = do
+  _  <- many $ satisfy $ not . isTSError
+  ts <- satisfy isTSError
+  _  <- many $ satisfy $ not . isTSDoneOrDoneProc -- [MEMO] skip Info
+  _  <- satisfy isFinalTSDoneOrDoneProc
+  return ts
+  where
+    isTSError :: TokenStream -> Bool
+    isTSError (TSError{}) = True
+    isTSError _ = False
 
-noResult :: Parser' ()
-noResult = do
+
+trySatisfy :: (TokenStream -> Bool) -> Parser' TokenStream
+trySatisfy f = do
+  ts <- lift $ (satisfyNotError f) <|> errorDone
+  case ts of
+    TSError ei -> throwError ei
+    _ -> return ts
+
+trySatisfyMany :: (TokenStream -> Bool) -> Parser' [TokenStream]
+trySatisfyMany f = do
+  tss <- lift $ (many $ satisfyNotError f) <|> ((\x->[x]) <$> errorDone)
+  case tss of
+    (TSError ei):_ -> throwError ei
+    _ -> return tss
+
+
+
+noResultDone :: Parser' ()
+noResultDone = do
   _ <- trySatisfyMany $ not . isTSDoneOrDoneProc
   _ <- trySatisfy isTSDoneOrDoneProc
   return ()
-  where
-    isTSDoneOrDoneProc :: TokenStream -> Bool
-    isTSDoneOrDoneProc (TSDone{}) = True
-    isTSDoneOrDoneProc (TSDoneProc{}) = True
-    isTSDoneOrDoneProc _ = False
+
+noResultFinalDone :: Parser' ()
+noResultFinalDone = do
+  _ <- trySatisfyMany $ not . isFinalTSDoneOrDoneProc
+  _ <- trySatisfy isFinalTSDoneOrDoneProc
+  return ()
+
+noResultFinalDone' :: Parser' ()
+noResultFinalDone' = do
+  _ <- trySatisfyMany $ not . isTSDoneOrDoneProc
+  _ <- trySatisfy isFinalTSDoneOrDoneProc
+  return ()
+
 
 
 returnStatus :: Parser' ReturnStatus
 returnStatus = do
   _ <- trySatisfyMany $ not . isTSReturnStatus
   TSReturnStatus rets <- trySatisfy isTSReturnStatus
-  _ <- trySatisfy isTSDoneProc
   return $ ReturnStatus $ fromIntegral rets
   where
     isTSReturnStatus :: TokenStream -> Bool
     isTSReturnStatus (TSReturnStatus{}) = True
     isTSReturnStatus _ = False
 
-    isTSDoneProc :: TokenStream -> Bool
-    isTSDoneProc (TSDoneProc{}) = True
-    isTSDoneProc _ = False
+returnStatusDone :: Parser' ReturnStatus
+returnStatusDone = do
+  rets <- returnStatus
+  _ <- trySatisfyMany $ not . isTSDoneProc -- [MEMO] skip ReturnValue
+  _ <- trySatisfy isTSDoneProc
+  return rets
+
+returnStatusFinalDone :: Parser' ReturnStatus
+returnStatusFinalDone = do
+  rets <- returnStatus
+  _ <- trySatisfyMany $ not . isFinalTSDoneProc -- [MEMO] skip ReturnValue
+  _ <- trySatisfy isFinalTSDoneProc
+  return rets
+
+returnStatusFinalDone' :: Parser' ReturnStatus
+returnStatusFinalDone' = do
+  rets <- returnStatus
+  _ <- trySatisfyMany $ not . isTSDoneProc -- [MEMO] skip ReturnValue
+  _ <- trySatisfy isFinalTSDoneProc
+  return rets
 
 
-rowCount :: Parser' RowCount
-rowCount = do
+
+rowCountDone :: Parser' RowCount
+rowCountDone = do
   _ <- trySatisfyMany $ not . isTSDone
   TSDone (Done _ _ rc) <- trySatisfy isTSDone
   return $ RowCount $ fromIntegral rc
+
+rowCountFinalDone :: Parser' RowCount
+rowCountFinalDone = do
+  _ <- trySatisfyMany $ not . isFinalTSDone
+  TSDone (Done _ _ rc) <- trySatisfy isFinalTSDone
+  return $ RowCount $ fromIntegral rc
+
+rowCountFinalDone' :: Parser' RowCount
+rowCountFinalDone' = do
+  _ <- trySatisfyMany $ not . isTSDone
+  TSDone (Done _ _ rc) <- trySatisfy isFinalTSDone
+  return $ RowCount $ fromIntegral rc
+
 
 
 listOfRow :: Row a => Parser' ([a])
 listOfRow = do
   tsCmd <- trySatisfy isTSColMetaData
-  _ <- trySatisfyMany $ not . isTSRow
+  _ <- trySatisfyMany $ not . isTSRow -- [MEMO] skip Order
   tsRows <- trySatisfyMany isTSRow
-  _ <- trySatisfyMany $ not . isTSDone -- necesarry ?
-  _ <- trySatisfy $ isTSDone
   return $
     let
       (TSColMetaData (maybeCmd)) = tsCmd
@@ -91,15 +155,26 @@ listOfRow = do
     getRawBytes (RCDOrdinal dt) = dt
     getRawBytes (RCDLarge _ _ dt) = dt
 
+listOfRowDone :: Row a => Parser' ([a])
+listOfRowDone = do
+  rs <- listOfRow
+  _ <- trySatisfyMany $ not . isTSDone -- [MEMO] necesarry ?
+  _ <- trySatisfy $ isTSDone
+  return rs
 
+listOfRowFinalDone :: Row a => Parser' ([a])
+listOfRowFinalDone = do
+  rs <- listOfRow
+  _ <- trySatisfyMany $ not . isFinalTSDone -- [MEMO] necesarry ?
+  _ <- trySatisfy $ isFinalTSDone
+  return rs
 
-isTSDone :: TokenStream -> Bool
-isTSDone (TSDone{}) = True
-isTSDone _ = False
-
-
-
-
+listOfRowFinalDone' :: Row a => Parser' ([a])
+listOfRowFinalDone' = do
+  rs <- listOfRow
+  _ <- trySatisfyMany $ not . isTSDone -- [MEMO] necesarry ?
+  _ <- trySatisfy $ isFinalTSDone
+  return rs
 
 
 
@@ -108,16 +183,16 @@ class ResultSet a where
 
 
 instance ResultSet () where
-  resultSetParser = noResult
+  resultSetParser = noResultFinalDone
 
 instance ResultSet RowCount where
-  resultSetParser = rowCount
+  resultSetParser = rowCountFinalDone
 
 instance ResultSet ReturnStatus where
-  resultSetParser = returnStatus
+  resultSetParser = returnStatusFinalDone
 
 instance (Row a) => ResultSet [a] where
-  resultSetParser = listOfRow
+  resultSetParser = listOfRowFinalDone
 
 
 
@@ -128,25 +203,29 @@ forM [2..30] $ \n -> do
   return dec
 --instance (Result a1, Result a2) => ResultSet (a1, a2) where
 --  resultSetParser = do
---    !r1 <- resultParser :: (Result a1) => Parser' a1
---    !r2 <- resultParser :: (Result a2) => Parser' a2
+--    !r1 <- resultParser False :: (Result a1) => Parser' a1
+--    !r2 <- resultParser True :: (Result a2) => Parser' a2
 --    return  (r1,r2)
 --
 
 
 class Result a where
-  resultParser :: Parser' a
+  resultParser :: Bool -> Parser' a -- [MEMO] 1st param: isFinal
 
 instance Result () where
-  resultParser = noResult
+  resultParser True = noResultFinalDone'
+  resultParser _ = noResultDone
 
 instance Result RowCount where
-  resultParser = rowCount
+  resultParser True = rowCountFinalDone'
+  resultParser _ = rowCountDone
 
 instance Result ReturnStatus where
-  resultParser = returnStatus
+  resultParser True = returnStatusFinalDone'
+  resultParser _ = returnStatusDone
 
 instance Row a => Result [a] where
-  resultParser = listOfRow
+  resultParser True = listOfRowFinalDone'
+  resultParser _ = listOfRowDone
 
 
