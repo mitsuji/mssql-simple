@@ -40,7 +40,11 @@ rowTuple n =
       [ ListP (map (\i ->VarP (mkName $ "m" <> show i)) [1..n])
       , ListP (map (\i ->VarP (mkName $ "b" <> show i)) [1..n])
       ]
+#if MIN_VERSION_template_haskell(2,16,0)
+      (NormalB (TupE (map (\i ->Just $ VarE (mkName $ "d" <> show i)) [1..n]) ))
+#else
       (NormalB (TupE (map (\i ->VarE (mkName $ "d" <> show i)) [1..n]) ))
+#endif
       (map d [1..n])
     , Clause [WildP,WildP] (NormalB (AppE
                                       (VarE 'error)
@@ -98,7 +102,11 @@ resultSetTuple n =
                      )
                  )
                  <>
+#if MIN_VERSION_template_haskell(2,16,0)
+                 [(NoBindS (AppE (VarE 'return) (TupE (map (\i->Just $ VarE (mkName $ "r" <> show i)) [1..n]) )) )]
+#else
                  [(NoBindS (AppE (VarE 'return) (TupE (map (\i->VarE (mkName $ "r" <> show i)) [1..n]) )) )]
+#endif
                )
              )
     ) []
@@ -136,7 +144,11 @@ rpcResponseSetTuple n =
                      (AppE (VarE (mkName "rpcResponseParser")) (if i==n then (ConE 'True) else (ConE 'False)))
                  )
                  <>
+#if MIN_VERSION_template_haskell(2,16,0)
+                 [(NoBindS (AppE (VarE 'return) (TupE (map (\i->Just $ VarE (mkName $ "r" <> show i)) [1..n]) )) )]
+#else
                  [(NoBindS (AppE (VarE 'return) (TupE (map (\i->VarE (mkName $ "r" <> show i)) [1..n]) )) )]
+#endif
                )
              )
     ) []
@@ -166,7 +178,11 @@ rpcOutputSetTuple n =
   [FunD (mkName "fromReturnValues")
    [Clause
      [ListP (map (\i ->VarP (mkName $ "r" <> show i)) [1..n])]
+#if MIN_VERSION_template_haskell(2,16,0)
+     (NormalB (TupE (map (\i ->Just $ VarE (mkName $ "d" <> show i)) [1..n])))
+#else
      (NormalB (TupE (map (\i ->VarE (mkName $ "d" <> show i)) [1..n])))
+#endif
 
      (map (\i->ValD (BangP (VarP (mkName $ "d" <> show i)))
                (NormalB (AppE
@@ -219,7 +235,11 @@ rpcResultSetTuple n =
                      )
                  )
                  <>
+#if MIN_VERSION_template_haskell(2,16,0)
+                 [(NoBindS (AppE (VarE 'return) (TupE (map (\i->Just $ VarE (mkName $ "r" <> show i)) [1..n]) )) )]
+#else
                  [(NoBindS (AppE (VarE 'return) (TupE (map (\i->VarE (mkName $ "r" <> show i)) [1..n]) )) )]
+#endif
                )
              )
     ) []
