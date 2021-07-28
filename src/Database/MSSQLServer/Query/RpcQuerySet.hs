@@ -269,11 +269,11 @@ numericVal name p (Left s) = RpcParamVal name (TINumericN p s) Nothing
 numericVal name p (Right f) = RpcParamVal name (TINumericN p (decimalScale f)) (Just f)
 
 charVal :: RpcParamName -> (Maybe B.ByteString) -> RpcParam (Maybe B.ByteString)
-charVal name Nothing = RpcParamVal name (TIBigChar 0xffff (Collation 0x00000000 0x00)) Nothing
+charVal name Nothing = RpcParamVal name (TIBigChar 0x0000 (Collation 0x00000000 0x00)) Nothing
 charVal name (Just bs) = RpcParamVal name (TIBigChar (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) (Just bs)
 
 varcharVal :: RpcParamName -> (Maybe B.ByteString) -> RpcParam (Maybe B.ByteString)
-varcharVal name Nothing = RpcParamVal name (TIBigVarChar 0xffff (Collation 0x00000000 0x00)) Nothing
+varcharVal name Nothing = RpcParamVal name (TIBigVarChar 0x0000 (Collation 0x00000000 0x00)) Nothing
 varcharVal name (Just bs) = RpcParamVal name (TIBigVarChar (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) (Just bs)
 
 textVal :: RpcParamName -> (Maybe B.ByteString) -> RpcParam (Maybe B.ByteString)
@@ -281,11 +281,11 @@ textVal name Nothing = RpcParamVal name (TIText 0xffffffff (Collation 0x00000000
 textVal name (Just bs) = RpcParamVal name (TIText (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) (Just bs)
 
 ncharVal :: RpcParamName -> (Maybe T.Text) -> RpcParam (Maybe T.Text)
-ncharVal name Nothing = RpcParamVal name (TINChar 0xffff (Collation 0x00000000 0x00)) Nothing
+ncharVal name Nothing = RpcParamVal name (TINChar 0x0000 (Collation 0x00000000 0x00)) Nothing
 ncharVal name (Just ts) = RpcParamVal name (TINChar (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) (Just ts)
 
 nvarcharVal :: RpcParamName -> (Maybe T.Text) -> RpcParam (Maybe T.Text)
-nvarcharVal name Nothing = RpcParamVal name (TINVarChar 0xffff (Collation 0x00000000 0x00)) Nothing
+nvarcharVal name Nothing = RpcParamVal name (TINVarChar 0x0000 (Collation 0x00000000 0x00)) Nothing
 nvarcharVal name (Just ts) = RpcParamVal name (TINVarChar (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) (Just ts)
 
 ntextVal :: RpcParamName -> (Maybe T.Text) -> RpcParam (Maybe T.Text)
