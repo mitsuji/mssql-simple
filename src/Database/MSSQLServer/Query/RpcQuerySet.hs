@@ -269,39 +269,39 @@ numericVal name p (Left s) = RpcParamVal name (TINumericN p s) Nothing
 numericVal name p (Right f) = RpcParamVal name (TINumericN p (decimalScale f)) (Just f)
 
 charVal :: RpcParamName -> (Maybe B.ByteString) -> RpcParam (Maybe B.ByteString)
-charVal name Nothing = RpcParamVal name (TIBigChar 0x0000 (Collation 0x00000000 0x00)) Nothing
+charVal name Nothing = RpcParamVal name (TIBigChar 0 (Collation 0x00000000 0x00)) Nothing
 charVal name (Just bs) = RpcParamVal name (TIBigChar (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) (Just bs)
 
 varcharVal :: RpcParamName -> (Maybe B.ByteString) -> RpcParam (Maybe B.ByteString)
-varcharVal name Nothing = RpcParamVal name (TIBigVarChar 0x0000 (Collation 0x00000000 0x00)) Nothing
+varcharVal name Nothing = RpcParamVal name (TIBigVarChar 0 (Collation 0x00000000 0x00)) Nothing
 varcharVal name (Just bs) = RpcParamVal name (TIBigVarChar (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) (Just bs)
 
 textVal :: RpcParamName -> (Maybe B.ByteString) -> RpcParam (Maybe B.ByteString)
-textVal name Nothing = RpcParamVal name (TIText 0xffffffff (Collation 0x00000000 0x00)) Nothing
+textVal name Nothing = RpcParamVal name (TIText 0 (Collation 0x00000000 0x00)) Nothing
 textVal name (Just bs) = RpcParamVal name (TIText (fromIntegral $ B.length bs) (Collation 0x00000000 0x00)) (Just bs)
 
 ncharVal :: RpcParamName -> (Maybe T.Text) -> RpcParam (Maybe T.Text)
-ncharVal name Nothing = RpcParamVal name (TINChar 0x0000 (Collation 0x00000000 0x00)) Nothing
+ncharVal name Nothing = RpcParamVal name (TINChar 0 (Collation 0x00000000 0x00)) Nothing
 ncharVal name (Just ts) = RpcParamVal name (TINChar (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) (Just ts)
 
 nvarcharVal :: RpcParamName -> (Maybe T.Text) -> RpcParam (Maybe T.Text)
-nvarcharVal name Nothing = RpcParamVal name (TINVarChar 0x0000 (Collation 0x00000000 0x00)) Nothing
+nvarcharVal name Nothing = RpcParamVal name (TINVarChar 0 (Collation 0x00000000 0x00)) Nothing
 nvarcharVal name (Just ts) = RpcParamVal name (TINVarChar (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) (Just ts)
 
 ntextVal :: RpcParamName -> (Maybe T.Text) -> RpcParam (Maybe T.Text)
-ntextVal name Nothing = RpcParamVal name (TINText 0xffffffff (Collation 0x00000000 0x00)) Nothing
+ntextVal name Nothing = RpcParamVal name (TINText 0 (Collation 0x00000000 0x00)) Nothing
 ntextVal name (Just ts) = RpcParamVal name (TINText (fromIntegral $ (T.length ts) * 2) (Collation 0x00000000 0x00)) (Just ts)
 
 binaryVal :: RpcParamName -> (Maybe B.ByteString) -> RpcParam (Maybe B.ByteString)
-binaryVal name Nothing = RpcParamVal name (TIBigBinary 0xffff) Nothing
+binaryVal name Nothing = RpcParamVal name (TIBigBinary 0) Nothing
 binaryVal name (Just bs) = RpcParamVal name (TIBigBinary (fromIntegral $ B.length bs)) (Just bs)
 
 varbinaryVal :: RpcParamName -> (Maybe B.ByteString) -> RpcParam (Maybe B.ByteString)
-varbinaryVal name Nothing = RpcParamVal name (TIBigVarBinary 0xffff) Nothing
+varbinaryVal name Nothing = RpcParamVal name (TIBigVarBinary 0) Nothing
 varbinaryVal name (Just bs) = RpcParamVal name (TIBigVarBinary (fromIntegral $ B.length bs)) (Just bs)
 
 imageVal :: RpcParamName -> (Maybe B.ByteString) -> RpcParam (Maybe B.ByteString)
-imageVal name Nothing = RpcParamVal name (TIImage 0xffffffff) Nothing
+imageVal name Nothing = RpcParamVal name (TIImage 0) Nothing
 imageVal name (Just bs) = RpcParamVal name (TIImage (fromIntegral $ B.length bs)) (Just bs)
 
 
