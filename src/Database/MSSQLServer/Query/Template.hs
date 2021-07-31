@@ -14,13 +14,12 @@ module Database.MSSQLServer.Query.Template ( rowTupleQ
 import Data.Monoid((<>))
 import Database.Tds.Message
 import Language.Haskell.TH
-import Language.Haskell.TH.Syntax (returnQ)
 import Data.List (foldl')
 
 
 
 rowTupleQ :: Int -> Q Dec
-rowTupleQ n = returnQ $ rowTuple n
+rowTupleQ n = return $ rowTuple n
 
 rowTuple :: Int -> Dec
 rowTuple n =
@@ -67,7 +66,7 @@ rowTuple n =
 
 
 resultSetTupleQ :: Int -> Q Dec
-resultSetTupleQ n = returnQ $ resultSetTuple n
+resultSetTupleQ n = return $ resultSetTuple n
 
 resultSetTuple :: Int -> Dec
 resultSetTuple n =
@@ -84,6 +83,9 @@ resultSetTuple n =
   (AppT (ConT (mkName "ResultSet")) (foldl' (\x i -> AppT x (VarT (mkName ("a" <> show i)))) (TupleT n) [1..n]))
   [ValD (VarP (mkName "resultSetParser"))
     (NormalB (DoE
+#if MIN_VERSION_template_haskell(2,17,0)
+               Nothing
+#endif
                (
                  (flip map [1..n] $ \i ->
                      BindS
@@ -91,7 +93,11 @@ resultSetTuple n =
                      (SigE
                       (AppE (VarE (mkName "resultParser")) (if i==n then (ConE 'True) else (ConE 'False)) )
                       (ForallT
+#if MIN_VERSION_template_haskell(2,17,0)
+                        [PlainTV (mkName $ "a" <> show i) SpecifiedSpec]
+#else
                         [PlainTV (mkName $ "a" <> show i)]
+#endif
 #if MIN_VERSION_template_haskell(2,10,0)
                         [AppT (ConT (mkName "Result")) (VarT (mkName $ "a" <> show i))]
 #else
@@ -115,7 +121,7 @@ resultSetTuple n =
 
 
 rpcResponseSetTupleQ :: Int -> Q Dec
-rpcResponseSetTupleQ n = returnQ $ rpcResponseSetTuple n
+rpcResponseSetTupleQ n = return $ rpcResponseSetTuple n
 
 rpcResponseSetTuple :: Int -> Dec
 rpcResponseSetTuple n =
@@ -137,6 +143,9 @@ rpcResponseSetTuple n =
    (foldl' (\x i -> AppT x (AppT (AppT (ConT (mkName "RpcResponse")) (VarT (mkName ("a" <> show i)))) (VarT (mkName ("b" <> show i)) )) ) (TupleT n) [1..n]))
   [ValD (VarP (mkName "rpcResponseSetParser"))
     (NormalB (DoE
+#if MIN_VERSION_template_haskell(2,17,0)
+               Nothing
+#endif
                (
                  (flip map [1..n] $ \i ->
                      BindS
@@ -157,7 +166,7 @@ rpcResponseSetTuple n =
 
 
 rpcOutputSetTupleQ :: Int -> Q Dec
-rpcOutputSetTupleQ n = returnQ $ rpcOutputSetTuple n
+rpcOutputSetTupleQ n = return $ rpcOutputSetTuple n
 
 rpcOutputSetTuple :: Int -> Dec
 rpcOutputSetTuple n =
@@ -201,7 +210,7 @@ rpcOutputSetTuple n =
 
 
 rpcResultSetTupleQ :: Int -> Q Dec
-rpcResultSetTupleQ n = returnQ $ rpcResultSetTuple n
+rpcResultSetTupleQ n = return $ rpcResultSetTuple n
 
 rpcResultSetTuple :: Int -> Dec
 rpcResultSetTuple n =
@@ -218,13 +227,20 @@ rpcResultSetTuple n =
   (AppT (ConT (mkName "RpcResultSet")) (foldl' (\x i -> AppT x (VarT (mkName ("a" <> show i)))) (TupleT n) [1..n]))
   [ValD (VarP (mkName "rpcResultSetParser"))
     (NormalB (DoE
+#if MIN_VERSION_template_haskell(2,17,0)
+               Nothing
+#endif
                (
                  (flip map [1..n] $ \i ->
                      BindS
                      (BangP (VarP (mkName $ "r" <> show i )))
                      (SigE (VarE (mkName "rpcResultParser"))
                       (ForallT
+#if MIN_VERSION_template_haskell(2,17,0)
+                        [PlainTV (mkName $ "a" <> show i) SpecifiedSpec]
+#else
                         [PlainTV (mkName $ "a" <> show i)]
+#endif
 #if MIN_VERSION_template_haskell(2,10,0)
                         [AppT (ConT (mkName "RpcResult")) (VarT (mkName $ "a" <> show i))]
 #else
@@ -248,7 +264,7 @@ rpcResultSetTuple n =
 
 
 rpcQuerySetTupleQ :: Int -> Q Dec
-rpcQuerySetTupleQ n = returnQ $ rpcQuerySetTuple n
+rpcQuerySetTupleQ n = return $ rpcQuerySetTuple n
 
 rpcQuerySetTuple :: Int -> Dec
 rpcQuerySetTuple n =
@@ -285,7 +301,7 @@ rpcQuerySetTuple n =
 
 
 rpcParamSetTupleQ :: Int -> Q Dec
-rpcParamSetTupleQ n = returnQ $ rpcParamSetTuple n
+rpcParamSetTupleQ n = return $ rpcParamSetTuple n
 
 rpcParamSetTuple :: Int -> Dec
 rpcParamSetTuple n =
