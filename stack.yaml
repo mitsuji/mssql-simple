@@ -20,8 +20,8 @@
 #resolver: lts-12.26  # ghc-8.4.4
 #resolver: lts-14.27  # ghc-8.6.5
 #resolver: lts-16.31  # ghc-8.8.4
-resolver: lts-18.4   # ghc-8.10.4
-#resolver: nightly-2021-07-30  # ghc-9.0.1
+resolver: lts-18.21   # ghc-8.10.7
+#resolver: nightly-2022-01-10  # ghc-9.0.2
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
