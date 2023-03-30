@@ -287,7 +287,11 @@ rpcQuerySetTuple n =
   [FunD (mkName "toRpcRequest")
    [Clause
     [TupP
-     (map (\i->ConP (mkName "RpcQuery") [VarP (mkName $ "a" <> show i),VarP (mkName $ "b" <> show i)]) [1..n])
+     (map (\i->ConP (mkName "RpcQuery")
+#if MIN_VERSION_template_haskell(2,18,0)
+                    []
+#endif
+                    [VarP (mkName $ "a" <> show i),VarP (mkName $ "b" <> show i)]) [1..n])
     ]
     (NormalB (AppE
                (ConE (mkName "RpcRequest"))
