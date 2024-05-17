@@ -25,6 +25,10 @@ import Control.Monad.Except
 import Control.Monad.Error
 #endif
 
+#if MIN_VERSION_mtl(2,3,0)
+import Control.Monad.Trans.Class (lift)
+#endif
+
 
 errorDone :: Parser TokenStream
 errorDone = do
