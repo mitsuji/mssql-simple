@@ -24,13 +24,12 @@ import Language.Haskell.TH (runIO,pprint)
 
 #if MIN_VERSION_mtl(2,2,1)
 import Control.Monad.Except
+#if MIN_VERSION_mtl(2,3,0)
+import Control.Monad.Trans.Class (lift)
+#endif
 #else
 import Control.Monad.Error
 runExceptT = runErrorT
-#endif
-
-#if MIN_VERSION_mtl(2,3,0)
-import Control.Monad.Trans.Class (lift)
 #endif
 
 
